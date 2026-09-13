@@ -1,34 +1,71 @@
-"""GCP adapter. Implement upload/download/push_image for Lab 1.
+"""GCP adapter. Implements upload/download/push_image for Lab 1.
 
-SDK:  pip install google-cloud-storage google-cloud-aiplatform
-Docs: storage.Client for GCS; Artifact Registry push goes through `docker push` after
-      `gcloud auth configure-docker <region>-docker.pkg.dev`.
+Lab 1 drives the gcloud and docker CLIs rather than the Python SDK. Both are already
+prerequisites (`make cloud-check` checks gcloud), and it keeps google-cloud-* out of
+the training image's lock file — the image never talks to GCP.
 
-Hints for Lab 1:
-  * BLOB_URI looks like gs://bucket/prefix — parse it here, never in src/.
+Notes:
+  * BLOB_URI looks like gs://bucket/prefix — parsed here, never in src/.
   * Artifact Registry paths are region-scoped:
         <region>-docker.pkg.dev/<project>/<repo>/<image>
-    A common first failure is pushing to gcr.io out of habit; it is a different service.
-  * push_image must return the digest reference, not the tag.
+    Not gcr.io; that is a different service.
+  * push_image returns the digest reference, not the tag.
   * GCP calls them labels, not tags, and they must be lowercase with no spaces.
-    cfg.tags(1) already satisfies that constraint — do not "improve" the values.
+    cfg.tags(1) already satisfies that constraint.
 """
 from __future__ import annotations
 
-from typing import Any
+import subprocess
+from pathlib import Path
 
 from cloudlayer.base import CloudAdapter
 
 
+def _run(cmd: list[str]) -> str:
+    out = subprocess.run(cmd, capture_output=True, text=True)
+    if out.returncode != 0:
+        raise RuntimeError(f"{' '.join(cmd)} failed ({out.returncode}):\n{out.stderr.strip()}")
+    return out.stdout.strip()
+
+
 class GcpAdapter(CloudAdapter):
+    def _blob_uri(self, key: str) -> str:
+        base = self.cfg.blob_uri.rstrip("/")
+        if not base.startswith("gs://"):
+            raise ValueError(f"BLOB_URI must be gs://bucket/prefix for GCP, got {base!r}")
+        return f"{base}/{key.lstrip('/')}"
+
     def upload(self, local_path: str, key: str) -> str:
-        raise NotImplementedError("TODO Lab 1: blob.upload_from_filename, return the gs:// URI")
+        uri = self._blob_uri(key)
+        _run(["gcloud", "storage", "cp", str(local_path), uri, "--quiet"])
+        return uri
 
     def download(self, uri: str, local_path: str) -> None:
-        raise NotImplementedError("TODO Lab 1: blob.download_to_filename, creating parents")
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+        _run(["gcloud", "storage", "cp", uri, str(local_path), "--quiet"])
 
     def push_image(self, local_tag: str) -> str:
-        raise NotImplementedError("TODO Lab 1: configure-docker, push, return repo@sha256:...")
+        registry = self.cfg.container_registry.rstrip("/")
+        if ".pkg.dev/" not in registry:
+            raise ValueError(
+                f"CONTAINER_REGISTRY must be <region>-docker.pkg.dev/<project>/<repo>, got {registry!r}"
+            )
+        host = registry.split("/", 1)[0]
+        name = local_tag.rsplit("/", 1)[-1]          # "itcs355-lab1:<sha>"
+        remote = f"{registry}/{name}"
+        repo = remote.rsplit(":", 1)[0]
+
+        _run(["gcloud", "auth", "configure-docker", host, "--quiet"])
+        _run(["docker", "tag", local_tag, remote])
+        _run(["docker", "push", remote])
+
+        # The pushed digest is recorded in RepoDigests; pick the entry for this repo.
+        digests = _run(["docker", "inspect", "--format",
+                        "{{range .RepoDigests}}{{println .}}{{end}}", remote]).splitlines()
+        for ref in digests:
+            if ref.startswith(repo + "@sha256:"):
+                return ref
+        raise RuntimeError(f"pushed {remote} but found no digest for {repo} in {digests}")
 
     # submit_training / register_model  -> Lab 2 (Vertex custom training + Model Registry)
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)

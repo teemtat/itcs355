@@ -72,6 +72,13 @@ def test_no_machine_leaks_across_splits(df):
     assert not va & te, f"machines in both val and test: {sorted(va & te)[:5]}"
 
 
+def test_no_reading_id_in_more_than_one_split(df):
+    for seed in (42, 20260101):
+        ids = [set(p[data.ID]) for p in data.split(df, seed=seed)]
+        overlap = (ids[0] & ids[1]) | (ids[0] & ids[2]) | (ids[1] & ids[2])
+        assert not overlap, f"seed {seed}: reading_ids in more than one split: {sorted(overlap)[:5]}"
+
+
 def test_split_is_deterministic_given_seed(df):
     a = data.split(df, seed=7)
     b = data.split(df, seed=7)

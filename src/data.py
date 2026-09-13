@@ -7,10 +7,12 @@ and cannot be audited for leakage.
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 TARGET = "failed_within_7d"
 GROUP = "machine_id"
@@ -58,15 +60,45 @@ def load_raw(path: Path) -> pd.DataFrame:
 
 
 def data_fingerprint(path: Path) -> str:
-    """Content hash of the raw file. Logged with every run so a metric can be traced to data.
-
-    In Lab 1 this stands in for the DVC hash; once `dvc add` is done, log both.
-    """
+    """Content hash of the raw file. Logged with every run so a metric can be traced to data."""
     h = hashlib.sha256()
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()[:16]
+
+
+def _md5(path: Path) -> str:
+    h = hashlib.md5()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def dvc_dir_md5(directory: Path) -> str:
+    """Recompute DVC's hash of a tracked directory from the bytes actually on disk.
+
+    This is the value `dvc add` writes into data/raw.dvc: the md5 of the sorted
+    {md5, relpath} manifest, suffixed ".dir". Computing it rather than reading it means
+    the logged data version describes the data the model saw, not the pointer file.
+    """
+    entries = [
+        {"md5": _md5(p), "relpath": p.relative_to(directory).as_posix()}
+        for p in sorted(directory.rglob("*"))
+        if p.is_file()
+    ]
+    entries.sort(key=lambda e: e["relpath"])
+    manifest = json.dumps(entries, sort_keys=True).encode("utf-8")
+    return hashlib.md5(manifest).hexdigest() + ".dir"
+
+
+def dvc_tracked_md5(pointer: Path) -> str | None:
+    """The md5 recorded in a .dvc pointer file, or None if the data is not DVC-tracked."""
+    if not pointer.exists():
+        return None
+    outs = (yaml.safe_load(pointer.read_text()) or {}).get("outs") or [{}]
+    return outs[0].get("md5")
 
 
 def split(

@@ -7,7 +7,7 @@ TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 PLATFORM ?= linux/amd64
 SEED ?= 20260101
 
-.PHONY: help setup cloud-check data test portability-audit train image image-push reproduce verify clean teardown \
+.PHONY: help setup cloud-check data test portability-audit train image image-push reproduce study verify clean teardown \
         tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
 
 help:
@@ -40,12 +40,31 @@ image-push: image ## Push to CONTAINER_REGISTRY via your adapter
 	python -c "from src import config; from cloudlayer.factory import get_adapter; \
 	print(get_adapter(config.load()).push_image(\"$(IMAGE):$(TAG)\"))"
 
-reproduce: data image ## THE ONE COMMAND. Grader runs this.
-	docker run --rm \
+# Run as the invoking user, not the image's uid 10001: on Linux a bind mount keeps host
+# ownership, so uid 10001 cannot write into the grader's reports/ or data/. The image
+# still defaults to non-root. That uid has no passwd entry, so give it HOME and USER.
+DOCKER_RUN = docker run --rm --platform $(PLATFORM) --user "$$(id -u):$$(id -g)" -e HOME=/tmp -e USER=reproducer
+
+reproduce: image ## THE ONE COMMAND. Grader runs this. Needs Docker only.
+	@mkdir -p data reports
+	# 1. Data, generated inside the pinned image so the host's Python and NumPy play no part.
+	$(DOCKER_RUN) -v "$$PWD/data:/app/data" --entrypoint python \
+	  $(IMAGE):$(TAG) scripts/make_dataset.py --seed $(SEED) --out /app/data/raw/sensors.csv
+	# 2. Train. Working dir is reports/ so MLflow's ./mlruns artifact store lands on the mount.
+	$(DOCKER_RUN) -w /app/reports \
 	  -v "$$PWD/data:/app/data:ro" \
 	  -v "$$PWD/reports:/app/reports" \
 	  -e MLFLOW_TRACKING_URI=sqlite:////app/reports/mlflow.db \
+	  -e GIT_COMMIT="$$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
 	  $(IMAGE):$(TAG) --seed $(SEED) --metrics-out /app/reports/metrics.json
+
+study: ## Lab 1 Task 5: max_depth sweep at the fixed seed, then the seed spread of the default config
+	@for d in 3 5 8 12 16; do \
+	  python -m src.train --seed $(SEED) --max-depth $$d --run-name depth-$$d || exit 1; \
+	done
+	@for s in 1 2 3 4 5; do \
+	  python -m src.train --seed $$s --run-name seed-$$s || exit 1; \
+	done
 
 verify: ## Check the produced metric against the README claim
 	python scripts/verify_metric.py
@@ -55,7 +74,7 @@ teardown: ## Delete every resource tagged course=itcs355 for this lab
 	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags(1)))"
 
 clean: ## Remove local artifacts
-	rm -rf mlruns mlartifacts mlflow.db reports/metrics.json .pytest_cache
+	rm -rf mlruns mlartifacts mlflow.db reports/metrics.json reports/mlflow.db reports/mlruns .pytest_cache
 
 # --- Lab 2 -------------------------------------------------------------------
 tune: ## Budgeted hyperparameter study (>=12 trials)

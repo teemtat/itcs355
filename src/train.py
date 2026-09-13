@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -23,6 +24,10 @@ from src import config, data, seeds
 
 
 def git_commit() -> str:
+    # The image has no .git (it is excluded from the build context), so `make reproduce`
+    # passes the SHA in. Outside the container, ask git directly.
+    if os.environ.get("GIT_COMMIT"):
+        return os.environ["GIT_COMMIT"]
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -53,6 +58,8 @@ def main() -> None:
 
     df = data.load_raw(cfg.raw_path)
     fingerprint = data.data_fingerprint(cfg.raw_path)
+    dvc_md5 = data.dvc_dir_md5(cfg.raw_path.parent)
+    dvc_tracked = data.dvc_tracked_md5(cfg.data_dir / "raw.dvc")
     train_df, val_df, test_df = data.split(df, seed=seed)
 
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
@@ -70,6 +77,9 @@ def main() -> None:
         mlflow.set_tags({
             "git_commit": git_commit(),
             "data_fingerprint": fingerprint,
+            "dvc_md5": dvc_md5,
+            "dvc_md5_tracked": dvc_tracked or "untracked",
+            "data_matches_dvc": str(dvc_md5 == dvc_tracked),
             "split_strategy": "group_by_machine_id",
             "n_train_rows": len(train_df),
             "n_val_rows": len(val_df),
@@ -84,6 +94,10 @@ def main() -> None:
             n_jobs=-1,
         )
         model.fit(train_df[data.FEATURES], train_df[data.TARGET])
+        # Predict single-threaded. With n_jobs>1 the forest sums per-tree probabilities in
+        # whatever order its threads finish, so the last bits of each score depend on the
+        # machine's core count and scheduling, and ties in the ROC ranking can flip.
+        model.set_params(n_jobs=1)
 
         metrics: dict[str, float] = {}
         for name, part in (("val", val_df), ("test", test_df)):
@@ -93,11 +107,11 @@ def main() -> None:
         mlflow.log_metrics(metrics)
         mlflow.sklearn.log_model(model, name="model")
 
-        print(json.dumps({"seed": seed, "data_fingerprint": fingerprint, **metrics}, indent=2))
+        result = {"seed": seed, "data_fingerprint": fingerprint, "dvc_md5": dvc_md5, **metrics}
+        print(json.dumps(result, indent=2))
         if args.metrics_out:
             args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
-            args.metrics_out.write_text(json.dumps(
-                {"seed": seed, "data_fingerprint": fingerprint, **metrics}, indent=2))
+            args.metrics_out.write_text(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
