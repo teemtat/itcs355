@@ -38,6 +38,15 @@ class CloudAdapter(ABC):
         which must be digest-pinned (repo@sha256:...), not tag-pinned."""
 
     # --- Lab 2 ---------------------------------------------------------------
+    def mount_path(self, key: str = "") -> str:
+        """Where a managed job sees BLOB_URI on its own filesystem.
+
+        Every provider mounts the blob store for you under a different path, which is
+        why this is a seam method and not a constant in src/. The point is that the
+        training container needs no cloud SDK: it opens a file.
+        """
+        raise NotImplementedError("Lab 2")
+
     def submit_training(self, image_uri: str, args: dict[str, Any]) -> str:
         raise NotImplementedError("Lab 2")
 

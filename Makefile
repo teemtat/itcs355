@@ -7,8 +7,14 @@ TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 PLATFORM ?= linux/amd64
 SEED ?= 20260101
 
+# Lab 2 defaults. MACHINE is priced in src/costs.py — change both together.
+MACHINE ?= n1-standard-4
+TRIALS  ?= 12
+BUDGET  ?= 150
+
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce study verify clean teardown \
-        tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
+        tune train-remote tune-remote pull-runs compare reload-check serve serve-image loadtest drift \
+        inject-drift pipeline cost swap-check llm-eval llm-gate
 
 help:
 	@grep -E "^[a-zA-Z_-]+:.*?## .*$$" $(MAKEFILE_LIST) | awk -F":.*?## " "{printf \"  %-20s %s\\n\", \$$1, \$$2}"
@@ -77,8 +83,18 @@ clean: ## Remove local artifacts
 	rm -rf mlruns mlartifacts mlflow.db reports/metrics.json reports/mlflow.db reports/mlruns .pytest_cache
 
 # --- Lab 2 -------------------------------------------------------------------
-tune: ## Budgeted hyperparameter study (>=12 trials)
-	python -m src.tune --trials 12 --budget-thb 150
+tune: ## Budgeted hyperparameter study (>=12 trials), locally
+	python -m src.tune --trials $(TRIALS) --budget-thb $(BUDGET)
+
+train-remote: ## Task 1: one training run as a managed job, not on this laptop
+	python scripts/train_remote.py --machine-type $(MACHINE) $(REMOTE_ARGS)
+
+tune-remote: ## Task 2: the budgeted study as a managed SPOT job, checkpointed to the bucket
+	python scripts/train_remote.py --module src.tune --machine-type $(MACHINE) $(REMOTE_ARGS) \
+	  --extra --trials $(TRIALS) --budget-thb $(BUDGET)
+
+pull-runs: ## Copy the runs the job tracked in the bucket down for comparison
+	python scripts/pull_runs.py
 
 compare: ## Rank runs by metric and by cost per point
 	python scripts/compare_runs.py --experiment itcs355-lab2

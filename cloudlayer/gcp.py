@@ -15,10 +15,29 @@ Notes:
 """
 from __future__ import annotations
 
+import json
 import subprocess
+import tempfile
+import time
+from datetime import datetime
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 from cloudlayer.base import CloudAdapter
+
+# Vertex mounts every bucket the job can read at /gcs/<bucket>/<object path>, so a job
+# reads BLOB_URI through an ordinary filesystem path and the training image needs no
+# Google SDK at all. Nothing else in the repo may know this prefix.
+GCS_FUSE_ROOT = "/gcs"
+
+TERMINAL_STATES = {
+    "JOB_STATE_SUCCEEDED",
+    "JOB_STATE_FAILED",
+    "JOB_STATE_CANCELLED",
+    "JOB_STATE_EXPIRED",
+}
 
 
 def _run(cmd: list[str]) -> str:
@@ -67,7 +86,125 @@ class GcpAdapter(CloudAdapter):
                 return ref
         raise RuntimeError(f"pushed {remote} but found no digest for {repo} in {digests}")
 
-    # submit_training / register_model  -> Lab 2 (Vertex custom training + Model Registry)
+    # --- Lab 2 ---------------------------------------------------------------
+
+    def mount_path(self, key: str = "") -> str:
+        """Translate BLOB_URI (+ key) into the path Vertex mounts inside the job.
+
+        gs://bucket/prefix + "data" -> /gcs/bucket/prefix/data
+        """
+        base = self.cfg.blob_uri.rstrip("/")
+        if not base.startswith("gs://"):
+            raise ValueError(f"BLOB_URI must be gs://bucket/prefix for GCP, got {base!r}")
+        path = f"{GCS_FUSE_ROOT}/{base.removeprefix('gs://')}"
+        return f"{path}/{key.lstrip('/')}" if key else path
+
+    def submit_training(self, image_uri: str, args: dict[str, Any]) -> str:
+        """Submit a Vertex custom training job. Returns the job resource name.
+
+        Four things, as every provider wants: an image, a command, an instance type, and
+        an identity. The identity is implicit here — the job runs as the project's
+        Compute Engine default service account unless `service_account` is passed — and
+        that is exactly where the first submission fails, because it is NOT the identity
+        that submitted the job.
+
+        Expected keys in `args`:
+            command       list[str]  entrypoint override (default: the image's own)
+            job_args      list[str]  arguments after the command
+            machine_type  str        default n1-standard-4
+            spot          bool       default True — discounted compute, Lab 2 requires it
+            env           dict       environment variables for the container
+            display_name  str        shown in the console
+            lab           int        which lab this resource belongs to, for teardown
+        """
+        spec: dict[str, Any] = {
+            "workerPoolSpecs": [{
+                "machineSpec": {"machineType": args.get("machine_type", "n1-standard-4")},
+                "replicaCount": 1,
+                "containerSpec": {
+                    "imageUri": image_uri,
+                    "env": [{"name": k, "value": str(v)} for k, v in args.get("env", {}).items()],
+                },
+            }],
+            # SPOT is the whole point of Task 2: roughly a third of on-demand, in exchange
+            # for the platform reclaiming the machine whenever it wants. Checkpoint or lose.
+            "scheduling": {"strategy": "SPOT" if args.get("spot", True) else "STANDARD"},
+        }
+        container = spec["workerPoolSpecs"][0]["containerSpec"]
+        if args.get("command"):
+            container["command"] = list(args["command"])
+        if args.get("job_args"):
+            container["args"] = [str(a) for a in args["job_args"]]
+        if args.get("service_account"):
+            spec["serviceAccount"] = args["service_account"]
+
+        labels = self.cfg.tags(args.get("lab", 2))
+        display_name = args.get("display_name", f"itcs355-lab{labels['lab']}")
+
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as fh:
+            yaml.safe_dump(spec, fh, sort_keys=False)
+            config_path = fh.name
+
+        name = _run([
+            "gcloud", "ai", "custom-jobs", "create",
+            f"--region={self.cfg.region}",
+            f"--project={self.cfg.project_id}",
+            f"--display-name={display_name}",
+            f"--config={config_path}",
+            "--labels=" + ",".join(f"{k}={v}" for k, v in labels.items()),
+            "--format=value(name)",
+            "--quiet",
+        ])
+        # gcloud prints the resource name on stdout, but older versions print it only in
+        # the human-readable banner on stderr. Fail loudly rather than return something
+        # that is not a job id.
+        if "/customJobs/" not in name:
+            raise RuntimeError(f"could not read a job name out of gcloud output: {name!r}")
+        return name.strip()
+
+    def wait_training(self, job_id: str) -> dict[str, Any]:
+        """Poll until the job reaches a terminal state. Returns what the run cost you.
+
+        Returns state, the three timestamps Vertex records, and wall-clock seconds
+        measured from startTime — not from createTime, because queueing for a spot
+        machine is not compute you were billed for.
+        """
+        poll_s = 20
+        while True:
+            raw = _run([
+                "gcloud", "ai", "custom-jobs", "describe", job_id,
+                f"--region={self.cfg.region}",
+                f"--project={self.cfg.project_id}",
+                "--format=json",
+            ])
+            job = json.loads(raw)
+            state = job.get("state", "JOB_STATE_UNSPECIFIED")
+            if state in TERMINAL_STATES:
+                break
+            print(f"  {state} ... polling again in {poll_s}s")
+            time.sleep(poll_s)
+
+        def _ts(key: str):
+            value = job.get(key)
+            return datetime.fromisoformat(value) if value else None
+
+        start, end = _ts("startTime"), _ts("endTime")
+        duration_s = (end - start).total_seconds() if start and end else None
+        worker = job["jobSpec"]["workerPoolSpecs"][0]
+        return {
+            "job_id": job_id,
+            "state": state,
+            "succeeded": state == "JOB_STATE_SUCCEEDED",
+            "create_time": job.get("createTime"),
+            "start_time": job.get("startTime"),
+            "end_time": job.get("endTime"),
+            "duration_s": duration_s,
+            "machine_type": worker["machineSpec"]["machineType"],
+            "spot": job["jobSpec"].get("scheduling", {}).get("strategy") == "SPOT",
+            "error": job.get("error", {}).get("message", ""),
+        }
+
+    # register_model                    -> Lab 2 Task 4 (Vertex Model Registry)
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)

@@ -51,6 +51,9 @@ class Config:
     mlflow_tracking_uri: str
     model_registry_name: str
     identity_ref: str
+    # Lab 2: a managed job has no repo checkout. DATA_DIR and REPORTS_DIR let the job
+    # point at the bucket (Vertex mounts it at /gcs/<bucket>/...) while a laptop run
+    # keeps the repo defaults. The paths still arrive through this module, never src/.
     data_dir: Path = field(default=REPO_ROOT / "data")
     reports_dir: Path = field(default=REPO_ROOT / "reports")
 
@@ -80,4 +83,6 @@ def load(strict: bool = True) -> Config:
         mlflow_tracking_uri=get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
         model_registry_name=get("MODEL_REGISTRY_NAME", "itcs355"),
         identity_ref=get("IDENTITY_REF", ""),
+        data_dir=Path(get("DATA_DIR") or REPO_ROOT / "data"),
+        reports_dir=Path(get("REPORTS_DIR") or REPO_ROOT / "reports"),
     )
