@@ -61,23 +61,24 @@ derivation, including why spot is 34% of on-demand here and not 30%.
 
 ## Which model did you register, and why?
 
-**Registered: run `3895bd37` — 100 trees, `max_depth=4`, `min_samples_leaf=5`, no class
-weighting. Registered as `itcs355-6688143` version 1.**
+**I registered run `3895bd37` — 100 trees, `max_depth=4`, `min_samples_leaf=5`, no class
+weighting. It went into the registry as `itcs355-6688143` version 1.**
 
-This is the top row on validation (0.8426), but the margin over the next configuration is
-0.0002, and rerunning this exact configuration across five model seeds moved it by 0.0033 —
-sixteen times the margin. The ordering at the top of the table is noise: the six
-`max_depth=4` configurations are not distinguishable on score. What does separate them is
-cost. This one trains in 0.35s for 0.0003 THB, while the 300-tree variant of the same
-configuration costs 2.9x more and scores *lower* on validation.
+It's top of the table on validation (0.8426), but it only beats second place by 0.0002.
+When I reran that same config at 5 different seeds the score moved by 0.0033 — 16 times
+bigger than the gap. So the top of the table is just noise. The six configs at
+`max_depth=4` are basically tied and I can't pick between them on score.
 
-Two configurations beat it on test (0.8545 against 0.8533). I did not select on test. Doing
-so would fit the test set through a slower loop and leave me no honest estimate to report.
-Test is reported here, not optimised.
+What I can pick on is cost. This one trains in 0.35s for 0.0003 THB. The same config with
+300 trees costs 2.9x more and scores *lower* on validation. Paying triple for a worse
+number is an easy no.
 
-Training costs 60s of n1-standard-4 spot, 0.05 THB per run; retraining weekly is 0.22
-THB/month. Compute is not the constraint at this scale — review time is.
+Two configs beat it on test (0.8545 vs 0.8533). I didn't pick on test on purpose. If I
+choose using the test set then I've fitted the test set, just slowly, and I've got no
+honest number left to report.
 
-**This could be wrong if** `max_depth=4` is underfitting a pattern that only appears across
-more machines. The study holds one split of 240 machines, and a different split could
-reorder the depth axis entirely.
+Training costs 0.05 THB a run, so retraining weekly is 0.22 THB a month.
+
+**Where I could be wrong:** `max_depth=4` might be too shallow and missing something that
+only shows up with more machines. I've only got one split of 240 machines. A different
+split could flip the depth results around completely.

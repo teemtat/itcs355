@@ -74,64 +74,80 @@ tolerance.
 
 ---
 
-## Promoting a model to production
+## Lab 2 — how to run it
 
-**What must be true** — all of these, checked automatically, not by eye:
+```bash
+make tune-remote              # 16 trials + 5 seeds, on a spot machine
+make pull-runs                # copy the runs back down from the bucket
+make compare                  # ranks runs by score and by cost
+make register RUN=3895bd37    # adds the lineage tags, promotes to Staging
+make reload-check VERSION=1   # loads it back out of the registry
+make teardown
+```
 
-- all eight lineage tags present on the model version
-- `reload_check.py` passes against the version as it sits in the registry
-- `metric_test` within 0.01 of the current production version, or a written exception
-- the version's `git_commit` exists on the main branch
-- the study behind it varied more than one hyperparameter
-
-**Who may do it** — not the person who trained it. The author opens the request; whoever
-owns the serving system approves it, because they are the one who gets called when it
-misbehaves. Separating those two roles is the point: the person who spent a week on a
-model is the worst placed to judge whether it is worth the risk of shipping.
-
-**What the rollback is** — repoint the `production` alias at the previous version. Under
-five minutes, no rebuild, no retrain. This only works while the previous version's
-artifacts are still in the registry, so old versions are demoted, never deleted.
-
-Lab 4 turns the first block into a CI gate. If a rule cannot be expressed as a check, it
-is not a rule.
+The results table and my 200-word write-up are in
+[`reports/lab2-comparison.md`](reports/lab2-comparison.md).
 
 ---
 
-## Rebuilding the registry from scratch
+## Promoting a model to production
 
-`mlflow.db` and the tracking store are in `.gitignore` on purpose — 114 MB of run
-directories does not belong in Git, and a registry that only exists on one laptop is not
-a registry. The bucket holds the runs; this repository holds what is needed to rebuild
-from them:
+Before anything goes to production I'd want all of this to be true, checked by a script,
+not by someone eyeballing it:
+
+- all 8 lineage tags are on the version
+- `reload_check.py` passes
+- `metric_test` is within 0.01 of whatever is in production right now
+- the commit is on main
+- the study behind it changed more than one hyperparameter
+
+**Who gets to press promote:** not me. I trained it, so of course I think it's good. The
+person who gets called at 2am when it breaks should be the one who says yes. I open the
+request, they approve it.
+
+**Rollback:** point the `production` alias back at the old version. Should take under 5
+minutes — no rebuilding, no retraining. That only works if the old version is still
+sitting there, so I don't delete old versions, I just demote them.
+
+Lab 4 turns that checklist into a CI gate. If I can't write a rule as a check, it's not
+really a rule.
+
+---
+
+## Getting the registry back
+
+`mlflow.db` and the run folders are gitignored. The runs are 114 MB, which shouldn't go
+in git. So if you clone this repo you get no registry and no model files.
+
+To build it back:
 
 ```bash
 make restore-registry RUN=3895bd37
 ```
 
-That pulls the study's tracking store out of `BLOB_URI`, re-registers version 1 with the
-same eight lineage tags — they are derived from the run and from `reports/lab2-jobs.jsonl`,
-not typed in — and then runs `reload_check.py` against the result.
+That pulls the runs out of the bucket, registers version 1 again with the same 8 tags,
+then runs the reload check. I don't type the tags in — they get read off the run and off
+`reports/lab2-jobs.jsonl`.
 
-It will refuse rather than guess: if `data/raw/sensors.csv` no longer fingerprints to what
-the run consumed, the DVC hash on disk is not the version that trained the model, and
-registering it would record a lineage field that is wrong rather than missing.
+It stops instead of guessing. If `data/raw/sensors.csv` doesn't hash to what the run
+actually used, then the DVC hash sitting on my disk isn't the version that trained the
+model. Writing it down anyway would be worse than leaving it blank, because a wrong tag
+looks fine until someone tries to rebuild the thing.
 
-The known weakness is that the registry's `source` is an absolute path on whichever
-machine ran the command. Production registries keep artifacts in object storage; this one
-keeps a pointer to a directory. Lab 3 has to fix that before anything is served.
+**What's bad about this:** the registry points at a folder path on my laptop. A real
+registry keeps the files in object storage. I need to fix that in Lab 3.
 
 ---
 
-## Lab 2 evidence
+## Lab 2 — what happened
 
-**The permission that failed on first submission** — none. The job's runtime identity
-(`52907215794-compute@developer.gserviceaccount.com`) already had bucket access: the
-bucket is in the same project and the default compute service account holds project
-Editor. The first job failed for an unrelated reason — MLflow 3 refuses a file-store
-backend unless `MLFLOW_ALLOW_FILE_STORE=true`.
+**Which permission failed on my first job:** none. I expected one, the lab handout says to
+expect one, but the job runs as `52907215794-compute@developer.gserviceaccount.com` and
+that account could already read my bucket — same project, and it has Editor. My first job
+died for a totally different reason: MLflow 3 won't use a file store unless you set
+`MLFLOW_ALLOW_FILE_STORE=true`.
 
-A permission error did appear later, uploading to the Vertex Model Registry:
+I did hit a permission error later, uploading to the Vertex model registry:
 
 ```
 FAILED_PRECONDITION: Vertex AI Service Agent service-52907215794@gcp-sa-aiplatform
@@ -139,31 +155,33 @@ does not have permission to access Artifact Registry repository
 projects/vertex-ai/locations/asia-southeast1/repositories/prediction
 ```
 
-It is not an IAM problem. Prebuilt serving containers are published to multi-region hosts
-(`asia-docker.pkg.dev`), not per-region ones, so that repository does not exist. Uploading
-with an image from our own registry succeeded under the same service agent, which is what
-separated the two explanations.
+It reads like a permissions problem but it isn't one. Google's prebuilt serving images
+live at `asia-docker.pkg.dev`, not at `asia-southeast1-docker.pkg.dev`, so that repo just
+doesn't exist. I figured it out by uploading with one of my own images instead — same
+service account, worked fine. So it was never about the account.
 
-**Chosen run** — `3895bd37fc694c9982cc94ea2f209fb8`, registered as `itcs355-6688143`
-version 1, promoted to Staging.
+**The run I registered:** `3895bd37fc694c9982cc94ea2f209fb8`, registered as
+`itcs355-6688143` version 1, promoted to Staging.
 
-**Seed variance** — five model seeds with the split held fixed: mean 0.8407, stdev 0.0014,
-spread 0.0033. Varying the split as well, as Lab 1 did, gave a spread of 0.05. The two
-numbers answer different questions: how stable this model is, and how much the answer
-depends on which machines landed in training.
+**Seed variance:** I reran my best config at 5 different model seeds, keeping the split the
+same. Mean 0.8407, stdev 0.0014, spread 0.0033. In Lab 1 I changed the seed for the split
+too and got a spread of 0.05. Those two numbers mean different things — one is "how shaky
+is this model", the other is "how much does it matter which machines ended up in training".
 
-**Retraining cost** — 0.051 THB per run on n1-standard-4 spot. Weekly retraining is 0.22
-THB/month. At that price compute is not what limits retraining frequency; every retrain
-produces a model someone has to evaluate and promote, and that review is the real cost.
+**Cost to retrain:** 0.051 THB per run on a spot n1-standard-4. Once a week is 0.22 THB a
+month. That's basically free, so money isn't the reason not to retrain more often — every
+retrain is another model someone has to look at and approve, and that's the part that
+actually costs something.
 
-**Interruption evidence** — captured in [`reports/lab2-interruption.md`](reports/lab2-interruption.md):
-the cancelled job's last five trials, the checkpoint that outlived it, and the replacement
-job skipping those five and resuming at trial 06.
+**Interruption:** I killed the study on purpose partway through to check the checkpoint
+worked. It did — the 5 finished trials were in the bucket, and the next job skipped them
+and carried on at trial 06. Logs are in
+[`reports/lab2-interruption.md`](reports/lab2-interruption.md).
 
-**Total Lab 2 spend** — 2.82 THB recorded against a 150 THB budget. The true figure is
-nearer 3.1 THB: one job was submitted with `--no-wait`, so nothing ever wrote its duration
-back, and `make teardown` then deleted the job. Cost accounting that depends on the
-submitting process staying alive loses data exactly when a job is fired and forgotten.
+**What Lab 2 cost me:** 2.82 THB out of 150. The real number is closer to 3.1. One job I
+submitted with `--no-wait`, so nothing ever wrote down how long it ran, and then
+`make teardown` deleted it. So my own cost tracking has a hole in it exactly when I fire a
+job and walk away.
 
 ---
 
