@@ -9,8 +9,9 @@ SEED ?= 20260101
 
 # Lab 2 defaults. MACHINE is priced in src/costs.py — change both together.
 MACHINE ?= n1-standard-4
-TRIALS  ?= 12
+TRIALS  ?= 16
 BUDGET  ?= 150
+SWEEP   ?= 5
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce study verify clean teardown \
         tune train-remote tune-remote pull-runs compare reload-check serve serve-image loadtest drift \
@@ -91,7 +92,7 @@ train-remote: ## Task 1: one training run as a managed job, not on this laptop
 
 tune-remote: ## Task 2: the budgeted study as a managed SPOT job, checkpointed to the bucket
 	python scripts/train_remote.py --module src.tune --machine-type $(MACHINE) $(REMOTE_ARGS) \
-	  --extra --trials $(TRIALS) --budget-thb $(BUDGET)
+	  --extra --trials $(TRIALS) --budget-thb $(BUDGET) --seed-sweep $(SWEEP)
 
 pull-runs: ## Copy the runs the job tracked in the bucket down for comparison
 	python scripts/pull_runs.py
