@@ -77,13 +77,26 @@ def find_run(store: Path, experiment: str, prefix: str):
     return row, model_dir
 
 
-def job_for(jobs_path: Path, run_prefix: str, module: str = "src.tune") -> dict:
-    """The managed job that produced this run. Most recent successful study job."""
+def job_for(jobs_path: Path, commit: str, module: str = "src.tune") -> dict:
+    """The managed job that produced a run at this commit.
+
+    Not simply the latest study job. A study interrupted by a reclaimed machine is
+    resumed by a SECOND job, and if any code changed in between, the two jobs ran
+    different images. Taking the latest job's image digest would then attach the wrong
+    image to a run the first job produced — a lineage field that is present, plausible
+    and false, which is worse than one that is missing.
+    """
     if not jobs_path.exists():
         return {}
     records = [json.loads(ln) for ln in jobs_path.read_text().splitlines() if ln.strip()]
     studies = [r for r in records if r.get("module") == module and r.get("succeeded")]
-    return studies[-1] if studies else {}
+    matching = [r for r in studies if r.get("git_commit") == commit]
+    if not matching:
+        raise SystemExit(
+            f"No successful {module} job recorded at commit {commit[:7]}. The run's "
+            "commit and the jobs we have on file disagree; do not guess the image."
+        )
+    return matching[-1]
 
 
 def main() -> int:
@@ -103,7 +116,7 @@ def main() -> int:
         )
     dvc_version = data.dvc_tracked_md5(cfg.data_dir / "raw.dvc") or "untracked"
 
-    job = job_for(args.jobs, args.run)
+    job = job_for(args.jobs, row.get("tags.git_commit", ""))
     lineage = {
         "git_commit": row.get("tags.git_commit", "unknown"),
         "data_version": dvc_version,
