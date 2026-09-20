@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -159,10 +158,13 @@ def main() -> int:
         adapter = get_adapter(cfg)
         joblib_dir = Path("reports/registry-upload")
         joblib_dir.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            [sys.executable, "scripts/export_model.py", "--out", str(joblib_dir / "model.joblib")],
-            check=True, env={**os.environ, "MLFLOW_TRACKING_URI": cfg.mlflow_tracking_uri},
-        )
+        # NOT scripts/export_model.py. That retrains a hardcoded configuration for CI's
+        # benefit; using it here would upload a model nobody selected, under lineage
+        # tags describing the one we did select. Serialise THIS model.
+        import joblib
+        chosen = mlflow.sklearn.load_model(f"file://{model_dir.resolve()}")
+        joblib.dump(chosen, joblib_dir / "model.joblib")
+        print(f"serialised the registered model: {chosen}")
         key = f"lab2-registry/v{version.version}"
         uri = adapter.upload(str(joblib_dir / "model.joblib"), f"{key}/model.joblib")
         print(f"uploaded {uri}")

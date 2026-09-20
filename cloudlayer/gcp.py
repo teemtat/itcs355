@@ -243,21 +243,40 @@ class GcpAdapter(CloudAdapter):
         if existing:
             cmd.append(f"--parent-model={existing[0].strip()}")
 
-        out = _run(cmd)
-        # gcloud prints projects/<n>/locations/<r>/models/<id>@<version>
-        version = out.strip().rsplit("@", 1)[-1] if "@" in out else out.strip()
-        if not version:
-            raise RuntimeError(f"model uploaded but no version came back: {out!r}")
-        return version
+        out = _run(cmd).strip()
+        if not out:
+            raise RuntimeError("model upload returned nothing")
+        # gcloud prints the model resource name, sometimes with @<version> and sometimes
+        # without. The caller was promised a VERSION, so ask for it rather than parse it
+        # out of whatever this gcloud release happens to print.
+        if "@" in out:
+            return out.rsplit("@", 1)[-1]
+        return _run([
+            "gcloud", "ai", "models", "describe", out,
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(versionId)",
+        ]).strip()
+
+    # Prebuilt serving containers are published to three MULTI-REGION hosts, not to
+    # per-region ones. Asking for asia-southeast1-docker.pkg.dev/vertex-ai/prediction
+    # fails as FAILED_PRECONDITION naming the Vertex service agent, which reads exactly
+    # like an IAM problem and is not one — the repository does not exist. Uploading with
+    # an image from our own registry succeeds with the same agent, which is how to tell
+    # the two apart.
+    _CONTAINER_HOSTS = {"us": "us", "northamerica": "us", "southamerica": "us",
+                        "europe": "europe", "me": "europe",
+                        "asia": "asia", "australia": "asia"}
 
     def _serving_image(self) -> str:
-        """Prebuilt scikit-learn serving container for this region.
+        """Prebuilt scikit-learn serving container nearest this region.
 
-        Pinned by minor version deliberately: "latest" would change what a registered
-        model deserialises with, which is the failure Lab 2 Task 5 is looking for.
+        Pinned by minor version deliberately: "latest" on the sklearn MINOR version
+        would change what a registered model deserialises with, which is the failure
+        Lab 2 Task 5 is looking for.
         """
-        return (f"{self.cfg.region}-docker.pkg.dev/vertex-ai/prediction/"
-                "sklearn-cpu.1-5:latest")
+        continent = self.cfg.region.split("-")[0]
+        host = self._CONTAINER_HOSTS.get(continent, "us")
+        return f"{host}-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-5:latest"
 
 
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)

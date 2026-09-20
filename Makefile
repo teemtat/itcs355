@@ -8,13 +8,20 @@ PLATFORM ?= linux/amd64
 SEED ?= 20260101
 
 # Lab 2 defaults. MACHINE is priced in src/costs.py — change both together.
+# cloud.env is the source of truth for these, and Make does not read it.
+MODEL_REGISTRY_NAME ?= $(shell sed -n "s/^MODEL_REGISTRY_NAME=//p" cloud.env)
+# MLflow 3 refuses a file-store backend unless asked; the study's runs are a file store.
+FILESTORE = MLFLOW_ALLOW_FILE_STORE=true
+
 MACHINE ?= n1-standard-4
 TRIALS  ?= 16
 BUDGET  ?= 150
 SWEEP   ?= 5
+STUDY       ?= lab2-final
+STUDY_LOCAL ?= reports/remote-mlruns-final
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce study verify clean teardown \
-        tune train-remote tune-remote pull-runs compare reload-check serve serve-image loadtest drift \
+        tune train-remote tune-remote pull-runs compare register reload-check serve serve-image loadtest drift \
         inject-drift pipeline cost swap-check llm-eval llm-gate
 
 help:
@@ -97,13 +104,17 @@ tune-remote: ## Task 2: the budgeted study as a managed SPOT job, checkpointed t
 	  --extra --trials $(TRIALS) --budget-thb $(BUDGET) --seed-sweep $(SWEEP)
 
 pull-runs: ## Copy the runs the job tracked in the bucket down for comparison
-	python scripts/pull_runs.py
+	$(FILESTORE) python scripts/pull_runs.py --key $(STUDY)/mlruns --out $(STUDY_LOCAL)
 
 compare: ## Rank runs by metric and by cost per point
-	python scripts/compare_runs.py --experiment itcs355-lab2
+	$(FILESTORE) MLFLOW_TRACKING_URI="file://$$PWD/$(STUDY_LOCAL)" \
+	  python scripts/compare_runs.py --experiment itcs355-lab2
+
+register: ## Task 4: register RUN with lineage, then promote it
+	$(FILESTORE) python scripts/register.py --run $(RUN) --study-mlruns $(STUDY_LOCAL)
 
 reload-check: ## Load the registered model by version and score rows
-	python scripts/reload_check.py --name $(MODEL_REGISTRY_NAME) --version $(VERSION)
+	$(FILESTORE) python scripts/reload_check.py --name $(MODEL_REGISTRY_NAME) --version $(VERSION)
 
 # --- Lab 3 -------------------------------------------------------------------
 serve: ## Run the inference service locally on :8080
