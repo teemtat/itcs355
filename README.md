@@ -98,6 +98,31 @@ is not a rule.
 
 ---
 
+## Rebuilding the registry from scratch
+
+`mlflow.db` and the tracking store are in `.gitignore` on purpose — 114 MB of run
+directories does not belong in Git, and a registry that only exists on one laptop is not
+a registry. The bucket holds the runs; this repository holds what is needed to rebuild
+from them:
+
+```bash
+make restore-registry RUN=3895bd37
+```
+
+That pulls the study's tracking store out of `BLOB_URI`, re-registers version 1 with the
+same eight lineage tags — they are derived from the run and from `reports/lab2-jobs.jsonl`,
+not typed in — and then runs `reload_check.py` against the result.
+
+It will refuse rather than guess: if `data/raw/sensors.csv` no longer fingerprints to what
+the run consumed, the DVC hash on disk is not the version that trained the model, and
+registering it would record a lineage field that is wrong rather than missing.
+
+The known weakness is that the registry's `source` is an absolute path on whichever
+machine ran the command. Production registries keep artifacts in object storage; this one
+keeps a pointer to a directory. Lab 3 has to fix that before anything is served.
+
+---
+
 ## Lab 2 evidence
 
 **The permission that failed on first submission** — none. The job's runtime identity
@@ -130,6 +155,10 @@ depends on which machines landed in training.
 **Retraining cost** — 0.051 THB per run on n1-standard-4 spot. Weekly retraining is 0.22
 THB/month. At that price compute is not what limits retraining frequency; every retrain
 produces a model someone has to evaluate and promote, and that review is the real cost.
+
+**Interruption evidence** — captured in [`reports/lab2-interruption.md`](reports/lab2-interruption.md):
+the cancelled job's last five trials, the checkpoint that outlived it, and the replacement
+job skipping those five and resuming at trial 06.
 
 **Total Lab 2 spend** — 2.82 THB recorded against a 150 THB budget. The true figure is
 nearer 3.1 THB: one job was submitted with `--no-wait`, so nothing ever wrote its duration

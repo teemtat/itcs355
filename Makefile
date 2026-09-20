@@ -23,7 +23,7 @@ STUDY       ?= lab2-final
 STUDY_LOCAL ?= reports/remote-mlruns-final
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce study verify clean teardown \
-        tune train-remote tune-remote pull-runs compare register reload-check serve serve-image loadtest drift \
+        tune train-remote tune-remote pull-runs compare register restore-registry reload-check serve serve-image loadtest drift \
         inject-drift pipeline cost swap-check llm-eval llm-gate
 
 help:
@@ -115,6 +115,11 @@ compare: ## Rank runs by metric and by cost per point
 
 register: ## Task 4: register RUN with lineage, then promote it
 	$(FILESTORE) python scripts/register.py --run $(RUN) --study-mlruns $(STUDY_LOCAL)
+
+restore-registry: ## Rebuild the local registry from the bucket, then verify it
+	$(MAKE) pull-runs
+	$(MAKE) register RUN=$(RUN)
+	$(MAKE) reload-check VERSION=1
 
 reload-check: ## Load the registered model by version and score rows
 	$(FILESTORE) python scripts/reload_check.py --name $(MODEL_REGISTRY_NAME) --version $(VERSION)
