@@ -62,12 +62,12 @@ derivation, including why spot is 34% of on-demand here and not 30%.
 ## Which model did you register, and why?
 
 **I registered run `3895bd37` — 100 trees, `max_depth=4`, `min_samples_leaf=5`, no class
-weighting. It went into the registry as `itcs355-6688143` version 1.**
+weighting. Registry version 1.**
 
 It's top of the table on validation (0.8426), but it only beats second place by 0.0002.
-When I reran that same config at 5 different seeds the score moved by 0.0033 — 16 times
-bigger than the gap. So the top of the table is just noise. The six configs at
-`max_depth=4` are basically tied and I can't pick between them on score.
+Rerunning that same config at 5 seeds moved the score by 0.0033 — 16 times bigger than the
+gap. So the top of the table is noise. The six configs at `max_depth=4` are basically tied
+and I can't pick between them on score.
 
 What I can pick on is cost. This one trains in 0.35s for 0.0003 THB. The same config with
 300 trees costs 2.9x more and scores *lower* on validation. Paying triple for a worse
@@ -79,6 +79,6 @@ honest number left to report.
 
 Training costs 0.05 THB a run, so retraining weekly is 0.22 THB a month.
 
-**Where I could be wrong:** `max_depth=4` might be too shallow and missing something that
-only shows up with more machines. I've only got one split of 240 machines. A different
-split could flip the depth results around completely.
+**Where I could be wrong:** `max_depth=4` might be too shallow and miss something that only
+shows up with more machines. I've got one split of 240 machines. A different split could
+flip the depth results around.
