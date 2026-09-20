@@ -11,6 +11,11 @@ mlruns/
 mlartifacts/
 mlflow.db
 
+# Lab 2: copies of the study's tracking store, pulled down from BLOB_URI.
+# 114 MB of run directories. `make restore-registry` recreates them.
+reports/remote-mlruns*/
+reports/registry-upload/
+
 reports/*.json
 reports/*.joblib
 __pycache__/
