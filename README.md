@@ -1,4 +1,4 @@
-# ITCS355 Lab 1 — Reproducible Training
+# ITCS355 — Reproducible Training (Lab 1) and Tracking & Registry (Lab 2)
 
 > **Course materials live in [`course/`](course/README.md)** — syllabus, slides, the faculty
 > specification, all five lab handouts, and the project brief. Every document is Markdown and
@@ -74,10 +74,76 @@ tolerance.
 
 ---
 
+## Promoting a model to production
+
+**What must be true** — all of these, checked automatically, not by eye:
+
+- all eight lineage tags present on the model version
+- `reload_check.py` passes against the version as it sits in the registry
+- `metric_test` within 0.01 of the current production version, or a written exception
+- the version's `git_commit` exists on the main branch
+- the study behind it varied more than one hyperparameter
+
+**Who may do it** — not the person who trained it. The author opens the request; whoever
+owns the serving system approves it, because they are the one who gets called when it
+misbehaves. Separating those two roles is the point: the person who spent a week on a
+model is the worst placed to judge whether it is worth the risk of shipping.
+
+**What the rollback is** — repoint the `production` alias at the previous version. Under
+five minutes, no rebuild, no retrain. This only works while the previous version's
+artifacts are still in the registry, so old versions are demoted, never deleted.
+
+Lab 4 turns the first block into a CI gate. If a rule cannot be expressed as a check, it
+is not a rule.
+
+---
+
+## Lab 2 evidence
+
+**The permission that failed on first submission** — none. The job's runtime identity
+(`52907215794-compute@developer.gserviceaccount.com`) already had bucket access: the
+bucket is in the same project and the default compute service account holds project
+Editor. The first job failed for an unrelated reason — MLflow 3 refuses a file-store
+backend unless `MLFLOW_ALLOW_FILE_STORE=true`.
+
+A permission error did appear later, uploading to the Vertex Model Registry:
+
+```
+FAILED_PRECONDITION: Vertex AI Service Agent service-52907215794@gcp-sa-aiplatform
+does not have permission to access Artifact Registry repository
+projects/vertex-ai/locations/asia-southeast1/repositories/prediction
+```
+
+It is not an IAM problem. Prebuilt serving containers are published to multi-region hosts
+(`asia-docker.pkg.dev`), not per-region ones, so that repository does not exist. Uploading
+with an image from our own registry succeeded under the same service agent, which is what
+separated the two explanations.
+
+**Chosen run** — `3895bd37fc694c9982cc94ea2f209fb8`, registered as `itcs355-6688143`
+version 1, promoted to Staging.
+
+**Seed variance** — five model seeds with the split held fixed: mean 0.8407, stdev 0.0014,
+spread 0.0033. Varying the split as well, as Lab 1 did, gave a spread of 0.05. The two
+numbers answer different questions: how stable this model is, and how much the answer
+depends on which machines landed in training.
+
+**Retraining cost** — 0.051 THB per run on n1-standard-4 spot. Weekly retraining is 0.22
+THB/month. At that price compute is not what limits retraining frequency; every retrain
+produces a model someone has to evaluate and promote, and that review is the real cost.
+
+**Total Lab 2 spend** — 2.82 THB recorded against a 150 THB budget. The true figure is
+nearer 3.1 THB: one job was submitted with `--no-wait`, so nothing ever wrote its duration
+back, and `make teardown` then deleted the job. Cost accounting that depends on the
+submitting process staying alive loses data exactly when a job is fired and forgotten.
+
+---
+
 ## Notes
 
 - `make reproduce` only needs Docker — it builds the data and trains inside the container, so it
   doesn't depend on your machine's Python at all.
 - Image is pushed to Artifact Registry, digest-pinned. `dvc push` is done, remote is a private
   bucket (grader would need read access to `dvc pull`, but that's not needed for `make reproduce`).
-- `make teardown` isn't implemented yet — that's expected, it's a Lab 5 thing.
+- `make teardown` cancels anything still running and removes failed jobs. It keeps
+  SUCCEEDED ones, because a registered version's `training_job_id` points at one;
+  `make teardown PURGE=True` removes those too.

@@ -59,6 +59,36 @@ def job_wallclock(path: Path) -> list[dict]:
     return out
 
 
+JUSTIFICATION_HEADING = "## Which model did you register, and why?"
+
+TEMPLATE = JUSTIFICATION_HEADING + """
+
+TODO(Lab 2): 200 words maximum. Must address all four:
+
+1. Why this model rather than the highest-scoring one, if they differ
+2. The variance across seeds for your chosen configuration
+3. What it costs to train, and to retrain monthly
+4. One way this choice could be wrong
+
+An answer that only says "highest validation score" scores zero on this task."""
+
+
+def keep_justification(out: Path) -> str:
+    """Rerunning the comparison must not delete the answer you wrote into it.
+
+    The tables above are regenerated from the tracking store every time. The
+    justification is not derived from anything; it is the graded part, and it lives in
+    the same file. Carry it across rather than overwriting it with the prompt again.
+    """
+    if out.exists():
+        text = out.read_text()
+        if JUSTIFICATION_HEADING in text:
+            existing = text[text.index(JUSTIFICATION_HEADING):].rstrip()
+            if "TODO(Lab 2)" not in existing:
+                return existing
+    return TEMPLATE
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--experiment", default="itcs355-lab2")
@@ -158,7 +188,7 @@ def main() -> int:
         *sweep_lines,
         "## Cost: measured two ways, and they disagree",
         "",
-        f"| | THB |",
+        "| | THB |",
         "|---|---|",
         f"| Sum of per-trial fit time, as the study logged it | {fit_total:.4f} |",
         f"| Machine time actually billed ({billed_s/60:.1f} min at {rate:.2f} THB/h) | {billed:.4f} |",
@@ -176,16 +206,7 @@ def main() -> int:
         "Cloud Billing Catalog API. USD/THB 33.36. See the module docstring for the",
         "derivation, including why spot is 34% of on-demand here and not 30%.",
         "",
-        "## Which model did you register, and why?",
-        "",
-        "TODO(Lab 2): 200 words maximum. Must address all four:",
-        "",
-        "1. Why this model rather than the highest-scoring one, if they differ",
-        "2. The variance across seeds for your chosen configuration",
-        "3. What it costs to train, and to retrain monthly",
-        "4. One way this choice could be wrong",
-        "",
-        "An answer that only says \"highest validation score\" scores zero on this task.",
+        keep_justification(args.out),
     ]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(lines))
