@@ -32,6 +32,24 @@ def git_commit() -> str:
     return out.stdout.strip() if out.returncode == 0 else "unknown"
 
 
+def require_clean_tree() -> None:
+    """Refuse to submit a job whose recorded commit would be a lie.
+
+    The image is built from the working tree; the run records HEAD. If the tree has
+    uncommitted changes, those two describe different code and the lineage is wrong in
+    a way nobody notices until they try to rebuild the model.
+    """
+    out = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+    dirty = [ln for ln in out.stdout.splitlines() if ln and not ln.startswith("??")]
+    if dirty:
+        raise SystemExit(
+            "Refusing to submit: the working tree has uncommitted changes, so the commit "
+            "this job records would not describe the code it runs.\n  "
+            + "\n  ".join(dirty[:10])
+            + "\nCommit them, or pass --allow-dirty if you are deliberately testing."
+        )
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="ITCS355 Lab 2 — managed training job")
     p.add_argument("--image-uri", help="digest-pinned image. Default: push IMAGE:TAG first.")
@@ -43,13 +61,19 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--run-name", default=None, help="subdirectory under BLOB_URI for this job")
     p.add_argument("--extra", nargs=argparse.REMAINDER, default=[],
                    help="everything after this flag is passed to the module verbatim")
+    p.add_argument("--prefix", default="lab2",
+                   help="prefix under BLOB_URI for this study's tracking store and checkpoint")
     p.add_argument("--skip-upload", action="store_true", help="data already in the bucket")
     p.add_argument("--no-wait", action="store_true", help="submit and exit")
+    p.add_argument("--allow-dirty", action="store_true",
+                   help="submit with uncommitted changes. The lineage will be wrong.")
     return p.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if not args.allow_dirty:
+        require_clean_tree()
     cfg = config.load()
     adapter = get_adapter(cfg)
     commit = git_commit()
@@ -71,13 +95,13 @@ def main() -> int:
 
     # 3. Where the job reads and writes. All of it inside BLOB_URI.
     data_dir = adapter.mount_path("data")
-    reports_dir = adapter.mount_path(f"lab2/{run_name}")
+    reports_dir = adapter.mount_path(f"{args.prefix}/{run_name}")
     # MLflow tracks on the container's own disk and we mirror it to the bucket after
     # each trial. Tracking straight onto the mount fails the moment MLflow logs a model:
     # it copies artifacts with shutil.copy2, which sets mtime, which a bucket mount does
     # not allow. See src/mirror.py.
     tracking_uri = "file:///tmp/mlruns"
-    sync_dir = adapter.mount_path("lab2/mlruns")
+    sync_dir = adapter.mount_path(f"{args.prefix}/mlruns")
 
     job_args = ["--experiment", args.experiment, *args.extra]
     if args.module == "src.train":
@@ -87,7 +111,7 @@ def main() -> int:
         # reclaimed spot machine cost minutes instead of the whole study: resubmit, and
         # the next job picks up the trials the last one finished.
         job_args += [
-            "--checkpoint", adapter.mount_path("lab2/tune_checkpoint.json"),
+            "--checkpoint", adapter.mount_path(f"{args.prefix}/tune_checkpoint.json"),
             "--instance", args.machine_type,
         ]
         if not args.no_spot:
@@ -150,7 +174,7 @@ def main() -> int:
         print("If it is a permissions error: the identity that RAN the job is not the")
         print("identity that submitted it. Record which permission was missing — Drill 2 asks.")
         return 1
-    print(f"\nartifacts: {cfg.blob_uri}/lab2/{run_name}")
+    print(f"\nartifacts: {cfg.blob_uri}/{args.prefix}/{run_name}")
     return 0
 
 

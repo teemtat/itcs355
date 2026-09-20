@@ -62,6 +62,7 @@ def main() -> None:
     dvc_tracked = data.dvc_tracked_md5(cfg.data_dir / "raw.dvc")
     train_df, val_df, test_df = data.split(df, seed=seed)
 
+    mirror.seed_tracking_dir(cfg.mlflow_tracking_uri, os.environ.get("MLRUNS_SYNC_DIR"))
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
     mlflow.set_experiment(args.experiment)
 

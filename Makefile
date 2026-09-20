@@ -41,7 +41,9 @@ train: ## Train locally, outside the container
 	python -m src.train --seed $(SEED) --metrics-out reports/metrics.json
 
 image: ## Build the training image for linux/amd64
-	docker buildx build --platform $(PLATFORM) -t $(IMAGE):$(TAG) --load .
+	docker buildx build --platform $(PLATFORM) \
+	  --build-arg GIT_COMMIT="$$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
+	  -t $(IMAGE):$(TAG) --load .
 
 image-push: image ## Push to CONTAINER_REGISTRY via your adapter
 	python -c "from src import config; from cloudlayer.factory import get_adapter; \

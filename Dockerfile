@@ -32,6 +32,11 @@ ENV PYTHONUNBUFFERED=1 \
     GIT_PYTHON_REFRESH=quiet \
     MLFLOW_DISABLE_AGENT_HINT=1
 
+# The image records the commit it was built from. Without this, "which code produced
+# this model" is answered by a tag you chose, not by anything the image can prove.
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.revision=$GIT_COMMIT
+
 COPY --from=builder /install /usr/local
 WORKDIR /app
 COPY --chown=runner:runner src/ ./src/

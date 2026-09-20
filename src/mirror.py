@@ -41,6 +41,21 @@ def mirror_tree(src: Path | str, dst: Path | str) -> int:
     return written
 
 
+def seed_tracking_dir(tracking_uri: str, sync_dir: str | None) -> None:
+    """Populate the local file store from SYNC_DIR before the run starts.
+
+    Without this a job begins with an empty store, MLflow mints a fresh experiment id
+    for the same experiment NAME, and mirroring the result back leaves several
+    experiments sharing one name. It also means a study that resumes after its machine
+    was reclaimed keeps its earlier runs instead of orphaning them.
+    """
+    if not sync_dir or not tracking_uri.startswith("file:"):
+        return
+    local = tracking_uri.removeprefix("file://")
+    n = mirror_tree(sync_dir, local)
+    print(f"  seeded {n} tracking files from {sync_dir}")
+
+
 def sync_tracking_dir(tracking_uri: str, sync_dir: str | None) -> None:
     """Mirror a local MLflow file store to SYNC_DIR, if one is configured.
 
