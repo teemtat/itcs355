@@ -101,6 +101,12 @@ def main() -> int:
         "display_name": f"itcs355-lab2-{run_name}",
         "lab": 2,
         "env": {
+            # cloud.env is deliberately not in the image, so the job would otherwise
+            # resolve CLOUD_PROVIDER to "local" and price a cloud machine off the local
+            # price table. The capability slots the job needs travel with the job.
+            "CLOUD_PROVIDER": cfg.provider,
+            "PROJECT_ID": cfg.project_id,
+            "REGION": cfg.region,
             "DATA_DIR": data_dir,
             "REPORTS_DIR": reports_dir,
             "MLFLOW_TRACKING_URI": tracking_uri,
