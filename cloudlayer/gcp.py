@@ -212,7 +212,54 @@ class GcpAdapter(CloudAdapter):
             "error": job.get("error", {}).get("message", ""),
         }
 
-    # register_model                    -> Lab 2 Task 4 (Vertex Model Registry)
+    def register_model(self, model_uri: str, name: str) -> str:
+        """Upload a model to the Vertex AI Model Registry. Returns its version id.
+
+        `model_uri` is a gs:// DIRECTORY containing the serialised model, named the way
+        the prebuilt serving container expects (model.joblib for scikit-learn). Vertex
+        wants a serving container even when nothing is being served yet, because a model
+        in its registry is defined as something deployable.
+
+        Uploading a second version under the same display name requires the parent
+        model's id, otherwise you silently get a second, unrelated model rather than
+        version 2 of the first — which is how registries quietly stop being registries.
+        """
+        labels = self.cfg.tags(2)
+        existing = _run([
+            "gcloud", "ai", "models", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--filter=displayName={name}", "--format=value(name)", "--quiet",
+        ]).splitlines()
+
+        cmd = [
+            "gcloud", "ai", "models", "upload",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--display-name={name}",
+            f"--artifact-uri={model_uri}",
+            f"--container-image-uri={self._serving_image()}",
+            "--labels=" + ",".join(f"{k}={v}" for k, v in labels.items()),
+            "--format=value(model)", "--quiet",
+        ]
+        if existing:
+            cmd.append(f"--parent-model={existing[0].strip()}")
+
+        out = _run(cmd)
+        # gcloud prints projects/<n>/locations/<r>/models/<id>@<version>
+        version = out.strip().rsplit("@", 1)[-1] if "@" in out else out.strip()
+        if not version:
+            raise RuntimeError(f"model uploaded but no version came back: {out!r}")
+        return version
+
+    def _serving_image(self) -> str:
+        """Prebuilt scikit-learn serving container for this region.
+
+        Pinned by minor version deliberately: "latest" would change what a registered
+        model deserialises with, which is the failure Lab 2 Task 5 is looking for.
+        """
+        return (f"{self.cfg.region}-docker.pkg.dev/vertex-ai/prediction/"
+                "sklearn-cpu.1-5:latest")
+
+
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)

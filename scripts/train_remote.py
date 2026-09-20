@@ -32,15 +32,27 @@ def git_commit() -> str:
     return out.stdout.strip() if out.returncode == 0 else "unknown"
 
 
+# What the Dockerfile copies in, plus what the build itself depends on. Only changes
+# under these paths can make the recorded commit disagree with the image.
+BUILD_INPUTS = ("src/", "cloudlayer/", "scripts/", "Dockerfile", "requirements.txt")
+
+
 def require_clean_tree() -> None:
     """Refuse to submit a job whose recorded commit would be a lie.
 
     The image is built from the working tree; the run records HEAD. If the tree has
     uncommitted changes, those two describe different code and the lineage is wrong in
     a way nobody notices until they try to rebuild the model.
+
+    Only the build context counts. reports/ is written by this very script on every
+    submit and is excluded from the image, so treating it as drift would block every
+    run after the first.
     """
     out = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
-    dirty = [ln for ln in out.stdout.splitlines() if ln and not ln.startswith("??")]
+    dirty = [
+        ln for ln in out.stdout.splitlines()
+        if ln and not ln.startswith("??") and ln[3:].strip().startswith(BUILD_INPUTS)
+    ]
     if dirty:
         raise SystemExit(
             "Refusing to submit: the working tree has uncommitted changes, so the commit "
