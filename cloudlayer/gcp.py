@@ -279,6 +279,63 @@ class GcpAdapter(CloudAdapter):
         return f"{host}-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-5:latest"
 
 
+    def teardown(self, tags: dict[str, str], purge: bool = False) -> list[str]:
+        """Stop and remove what these tags cover. Returns what was acted on.
+
+        What actually costs money is a job that is still running, so anything not in a
+        terminal state is cancelled first.
+
+        Finished jobs are metadata, not compute, and they are free. They are also the
+        far end of a lineage edge: a registered model version carries training_job_id,
+        and deleting the job it names turns "which job produced this model" into a
+        dangling reference. So a SUCCEEDED job is kept unless you ask for `purge`, and
+        failed or cancelled ones — which nothing points at — are removed.
+
+        Deletion is asynchronous. A successful return means accepted, not gone.
+        """
+        listed = _run([
+            "gcloud", "ai", "custom-jobs", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(name,state,labels.lab)", "--quiet",
+        ]).splitlines()
+
+        acted: list[str] = []
+        for line in listed:
+            parts = line.split("\t")
+            if len(parts) < 3 or parts[2] != tags.get("lab"):
+                continue
+            name, state = parts[0], parts[1]
+            if state not in TERMINAL_STATES:
+                _run(["gcloud", "ai", "custom-jobs", "cancel", name,
+                      f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+                      "--quiet"])
+                acted.append(f"cancelled {name.rsplit('/', 1)[-1]} ({state})")
+                continue
+            if state == "JOB_STATE_SUCCEEDED" and not purge:
+                acted.append(f"kept      {name.rsplit('/', 1)[-1]} (SUCCEEDED — lineage)")
+                continue
+            self._delete_custom_job(name)
+            acted.append(f"deleted   {name.rsplit('/', 1)[-1]} ({state})")
+        return acted
+
+    def _delete_custom_job(self, name: str) -> None:
+        """Delete a custom job.
+
+        `gcloud ai custom-jobs` can cancel but not delete — the verb only exists on the
+        REST surface. This is the one place in the adapter that reaches past the CLI,
+        and it is why the seam exists: the caller asked to tear down, not to know that
+        one of eleven operations is missing from a command-line tool.
+        """
+        token = _run(["gcloud", "auth", "print-access-token"])
+        endpoint = f"https://{self.cfg.region}-aiplatform.googleapis.com/v1/{name}"
+        out = subprocess.run(
+            ["curl", "-sS", "-X", "DELETE", endpoint,
+             "-H", f"Authorization: Bearer {token}"],
+            capture_output=True, text=True,
+        )
+        if out.returncode != 0 or '"error"' in out.stdout:
+            raise RuntimeError(f"delete {name} failed: {out.stdout or out.stderr}")
+
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)

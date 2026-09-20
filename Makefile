@@ -17,6 +17,8 @@ MACHINE ?= n1-standard-4
 TRIALS  ?= 16
 BUDGET  ?= 150
 SWEEP   ?= 5
+LAB     ?= 2
+PURGE   ?= False
 STUDY       ?= lab2-final
 STUDY_LOCAL ?= reports/remote-mlruns-final
 
@@ -85,9 +87,10 @@ study: ## Lab 1 Task 5: max_depth sweep at the fixed seed, then the seed spread 
 verify: ## Check the produced metric against the README claim
 	python scripts/verify_metric.py
 
-teardown: ## Delete every resource tagged course=itcs355 for this lab
-	python -c "from src import config; from cloudlayer.factory import get_adapter; \
-	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags(1)))"
+teardown: ## Cancel running jobs and remove dead ones for LAB (default 2)
+	@python -c "from src import config; from cloudlayer.factory import get_adapter; \
+	cfg=config.load(); \
+	[print(' ', l) for l in get_adapter(cfg).teardown(cfg.tags($(LAB)), purge=$(PURGE))]"
 
 clean: ## Remove local artifacts
 	rm -rf mlruns mlartifacts mlflow.db reports/metrics.json reports/mlflow.db reports/mlruns .pytest_cache
