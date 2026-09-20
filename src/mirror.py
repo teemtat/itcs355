@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 def mirror_tree(src: Path | str, dst: Path | str) -> int:
-    """Copy every file under src into dst, contents only. Returns files written."""
+    """Copy files under src into dst, contents only, skipping unchanged ones."""
     src, dst = Path(src), Path(dst)
     if not src.exists():
         return 0
@@ -27,7 +27,16 @@ def mirror_tree(src: Path | str, dst: Path | str) -> int:
         target = dst / rel
         target.mkdir(parents=True, exist_ok=True)
         for name in files:
-            shutil.copyfile(Path(root) / name, target / name)
+            src_file, dst_file = Path(root) / name, target / name
+            # MLflow's file store is close to append-only: finished runs never change.
+            # Re-copying the whole tree after every trial made the study O(n^2) and took
+            # 43 minutes of billed machine time to do about 40 seconds of training.
+            try:
+                if dst_file.exists() and dst_file.stat().st_size == src_file.stat().st_size:
+                    continue
+            except OSError:
+                pass
+            shutil.copyfile(src_file, dst_file)
             written += 1
     return written
 
@@ -42,4 +51,4 @@ def sync_tracking_dir(tracking_uri: str, sync_dir: str | None) -> None:
         return
     local = tracking_uri.removeprefix("file://")
     n = mirror_tree(local, sync_dir)
-    print(f"  synced {n} tracking files -> {sync_dir}")
+    print(f"  synced {n} new tracking files -> {sync_dir}")

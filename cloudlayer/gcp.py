@@ -63,6 +63,14 @@ class GcpAdapter(CloudAdapter):
         Path(local_path).parent.mkdir(parents=True, exist_ok=True)
         _run(["gcloud", "storage", "cp", uri, str(local_path), "--quiet"])
 
+    def download_prefix(self, key: str, local_dir: str) -> int:
+        dest = Path(local_dir)
+        dest.mkdir(parents=True, exist_ok=True)
+        src = self._blob_uri(key).rstrip("/")
+        # rsync, not cp: the study is rerun and this is called again.
+        _run(["gcloud", "storage", "rsync", "--recursive", src, str(dest), "--quiet"])
+        return sum(1 for _ in dest.rglob("*") if _.is_file())
+
     def push_image(self, local_tag: str) -> str:
         registry = self.cfg.container_registry.rstrip("/")
         if ".pkg.dev/" not in registry:

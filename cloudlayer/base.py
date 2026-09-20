@@ -32,6 +32,10 @@ class CloudAdapter(ABC):
     def download(self, uri: str, local_path: str) -> None:
         """Fetch an object to a local path. Creates parent directories."""
 
+    def download_prefix(self, key: str, local_dir: str) -> int:
+        """Fetch everything under BLOB_URI/key into local_dir. Returns objects copied."""
+        raise NotImplementedError("Lab 2")
+
     @abstractmethod
     def push_image(self, local_tag: str) -> str:
         """Push a locally built image to CONTAINER_REGISTRY. Returns the remote reference,
