@@ -61,24 +61,22 @@ derivation, including why spot is 34% of on-demand here and not 30%.
 
 ## Which model did you register, and why?
 
-**I registered run `3895bd37` — 100 trees, `max_depth=4`, `min_samples_leaf=5`, no class
+**Registered: run `3895bd37` — 100 trees, `max_depth=4`, `min_samples_leaf=5`, no class
 weighting. Registry version 1.**
 
-It's top of the table on validation (0.8426), but it only beats second place by 0.0002.
-Rerunning that same config at 5 seeds moved the score by 0.0033 — 16 times bigger than the
-gap. So the top of the table is noise. The six configs at `max_depth=4` are basically tied
-and I can't pick between them on score.
+It has the highest validation score (0.8426), but it beats second place by 0.0002. Rerunning
+the same config at 5 seeds moved the score by 0.0033, which is 16 times that gap. The six
+configs at `max_depth=4` are therefore tied within noise and cannot be separated on score.
 
-What I can pick on is cost. This one trains in 0.35s for 0.0003 THB. The same config with
-300 trees costs 2.9x more and scores *lower* on validation. Paying triple for a worse
-number is an easy no.
+They can be separated on cost. This one trains in 0.35s for 0.0003 THB. The same config
+with 300 trees costs 2.9x more and scores lower on validation.
 
-Two configs beat it on test (0.8545 vs 0.8533). I didn't pick on test on purpose. If I
-choose using the test set then I've fitted the test set, just slowly, and I've got no
-honest number left to report.
+Two configs score higher on test (0.8545 against 0.8533). I did not select on test.
+Selecting on test fits the test set and leaves no independent estimate to report, so test
+is reported here and not used to choose.
 
-Training costs 0.05 THB a run, so retraining weekly is 0.22 THB a month.
+Training cost: 0.05 THB per run. Retraining weekly: 0.22 THB per month.
 
-**Where I could be wrong:** `max_depth=4` might be too shallow and miss something that only
-shows up with more machines. I've got one split of 240 machines. A different split could
-flip the depth results around.
+**How this could be wrong:** `max_depth=4` may be too shallow and miss a pattern that only
+appears across more machines. The study uses one split of 240 machines. A different split
+could change the ordering of the depth axis.
