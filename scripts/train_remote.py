@@ -72,7 +72,12 @@ def main() -> int:
     # 3. Where the job reads and writes. All of it inside BLOB_URI.
     data_dir = adapter.mount_path("data")
     reports_dir = adapter.mount_path(f"lab2/{run_name}")
-    tracking_uri = "file://" + adapter.mount_path("lab2/mlruns")
+    # MLflow tracks on the container's own disk and we mirror it to the bucket after
+    # each trial. Tracking straight onto the mount fails the moment MLflow logs a model:
+    # it copies artifacts with shutil.copy2, which sets mtime, which a bucket mount does
+    # not allow. See src/mirror.py.
+    tracking_uri = "file:///tmp/mlruns"
+    sync_dir = adapter.mount_path("lab2/mlruns")
 
     job_args = ["--experiment", args.experiment, *args.extra]
     if args.module == "src.train":
@@ -100,13 +105,20 @@ def main() -> int:
             "REPORTS_DIR": reports_dir,
             "MLFLOW_TRACKING_URI": tracking_uri,
             "GIT_COMMIT": commit,
+            # MLflow 3 refuses a file-store backend unless you opt in. A file store is
+            # what we want here: the bucket is mounted as a filesystem, and runs are
+            # written as plain files that survive the machine being reclaimed mid-study.
+            # A sqlite database over a bucket mount would not survive it — that is a
+            # single file rewritten in place, over a filesystem with no real locking.
+            "MLFLOW_ALLOW_FILE_STORE": "true",
+            "MLRUNS_SYNC_DIR": sync_dir,
         },
     }
 
     print(f"\nsubmitting: python -m {args.module} {' '.join(job_args)}")
     print(f"  machine   {args.machine_type}  spot={not args.no_spot}")
     print(f"  data      {data_dir}")
-    print(f"  tracking  {tracking_uri}")
+    print(f"  tracking  {tracking_uri}  -> mirrored to {sync_dir}")
     job_id = adapter.submit_training(image_uri, spec)
     print(f"\njob id: {job_id}")
 

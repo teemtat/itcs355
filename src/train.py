@@ -20,7 +20,7 @@ import mlflow.sklearn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
 
-from src import config, data, seeds
+from src import config, data, mirror, seeds
 
 
 def git_commit() -> str:
@@ -108,6 +108,7 @@ def main() -> None:
         mlflow.sklearn.log_model(model, name="model")
 
         result = {"seed": seed, "data_fingerprint": fingerprint, "dvc_md5": dvc_md5, **metrics}
+        mirror.sync_tracking_dir(cfg.mlflow_tracking_uri, os.environ.get("MLRUNS_SYNC_DIR"))
         print(json.dumps(result, indent=2))
         if args.metrics_out:
             args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
