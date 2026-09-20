@@ -77,7 +77,7 @@ tolerance.
 ## Lab 2 — how to run it
 
 ```bash
-make tune-remote              # 16 trials + 5 seeds, on a spot machine
+make tune-remote              # 16 trials + 5 seeds, spot machine
 make pull-runs                # copy the runs back from the bucket
 make compare                  # ranks by score and by cost
 make register RUN=3895bd37    # adds lineage tags, promotes to Staging
@@ -91,78 +91,76 @@ Results and my write-up: [`reports/lab2-comparison.md`](reports/lab2-comparison.
 
 ## Promoting a model to production
 
-Has to pass all of this first, by script, not by eye:
+Checks that must pass first, run by a script:
 
 - all 8 lineage tags on the version
 - `reload_check.py` passes
-- `metric_test` within 0.01 of what's in production now
+- `metric_test` within 0.01 of the current production version
 - the commit is on main
-- the study changed more than one hyperparameter
+- the study varied more than one hyperparameter
 
-**Who presses promote:** not me. I trained it, so of course I like it. The person who gets
-called at 2am when it breaks should be the one who says yes.
+**Who can promote:** the person who owns the serving system, not the person who trained
+the model. The author opens the request, the owner approves it.
 
-**Rollback:** point the `production` alias back at the old version. Under 5 minutes, no
-rebuild. Only works if the old version is still there, so I demote old ones, never delete.
+**Evidence the owner should require:** the checks above, plus the comparison report for
+the study behind the version.
 
-Lab 4 turns that list into a CI gate.
+**Rollback:** point the `production` alias at the previous version. Under 5 minutes, no
+rebuild. Old versions are demoted, not deleted.
+
+Lab 4 turns these checks into a CI gate.
 
 ---
 
 ## Getting the registry back
 
-`mlflow.db` and the run folders are gitignored — 114 MB shouldn't go in git. So a fresh
-clone has no registry.
+`mlflow.db` and the run folders are gitignored — 114 MB. A fresh clone has no registry.
 
 ```bash
 make restore-registry RUN=3895bd37
 ```
 
-Pulls the runs from the bucket, registers version 1 again with the same 8 tags, runs the
-reload check. I don't type the tags in, they get read off the run.
+It pulls the runs from the bucket, registers version 1 with the same 8 tags, then runs the
+reload check. The tags are read off the run and off `reports/lab2-jobs.jsonl`.
 
-It stops instead of guessing. If `data/raw/sensors.csv` doesn't hash to what the run used,
-the DVC hash here isn't the one that trained the model. A wrong tag looks fine right up
-until someone tries to rebuild.
+It fails instead of guessing: if `data/raw/sensors.csv` does not hash to what the run
+used, the DVC hash here is not the version that trained the model.
 
-**Bad part:** the registry points at a folder on my laptop. A real one keeps the files in
-object storage. That's a Lab 3 problem.
+**Limitation:** the registry source is a folder path on my laptop, not object storage.
+Fixing that is Lab 3.
 
 ---
 
 ## Lab 2 — what happened
 
-**Which permission failed on my first job:** none. The job runs as the default compute
-account, which could already read my bucket. It died on something else — MLflow 3 won't
-use a file store unless you set `MLFLOW_ALLOW_FILE_STORE=true`.
+**Permission that failed on the first job:** none. The job runs as the default compute
+service account, which already had read access to the bucket. The first job failed because
+MLflow 3 rejects a file store unless `MLFLOW_ALLOW_FILE_STORE=true` is set.
 
-One did show up later, uploading to the Vertex registry:
+A permission error did appear later, uploading to the Vertex model registry:
 
 ```
 FAILED_PRECONDITION: Vertex AI Service Agent ... does not have permission to access
 Artifact Registry repository .../asia-southeast1/repositories/prediction
 ```
 
-Not actually a permissions problem. Google's prebuilt images live at
-`asia-docker.pkg.dev`, not `asia-southeast1-docker.pkg.dev`, so that repo doesn't exist. I
-proved it by uploading with one of my own images — same account, worked fine.
+Cause: prebuilt serving images are at `asia-docker.pkg.dev`, not
+`asia-southeast1-docker.pkg.dev`. The repository in the message does not exist. Uploading
+with an image from my own registry worked under the same service account.
 
-**Run I registered:** `3895bd37fc694c9982cc94ea2f209fb8`, version 1, Staging.
+**Run registered:** `3895bd37fc694c9982cc94ea2f209fb8`, version 1, Staging.
 
-**Seed variance:** best config rerun at 5 seeds, same split — stdev 0.0014, spread 0.0033.
-In Lab 1 I changed the split too and got 0.05. Different questions: how shaky the model is,
-versus how much it matters which machines landed in training.
+**Seed variance:** best config rerun at 5 seeds with the split fixed. stdev 0.0014, spread
+0.0033. Lab 1 varied the split as well and got a spread of 0.05.
 
-**Retrain cost:** 0.051 THB a run, so weekly is 0.22 THB a month. Basically free — cost
-isn't what stops me retraining more often, it's that every retrain needs someone to check
-and approve it.
+**Retrain cost:** 0.051 THB per run. Weekly is 0.22 THB per month.
 
-**Interruption:** I killed the study halfway on purpose. The 5 finished trials survived in
-the bucket, and the next job skipped them and carried on at trial 06. Logs in
+**Interruption:** I cancelled the study after 5 trials. The checkpoint in the bucket
+survived, and the next job skipped those 5 and resumed at trial 06. Logs in
 [`reports/lab2-interruption.md`](reports/lab2-interruption.md).
 
-**What it cost:** 2.82 THB out of 150. Really about 3.1 — one job I ran with `--no-wait`
-never got its duration written down, then `make teardown` deleted it.
+**Cost:** 2.82 THB of 150 recorded. Actual is closer to 3.1 — one job ran with
+`--no-wait`, so its duration was never written down, and `make teardown` deleted it.
 
 ---
 
