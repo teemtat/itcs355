@@ -1,0 +1,28 @@
+{
+  "baseline": {
+    "test_roc_auc": 0.8533,
+    "test_log_loss": 0.2706,
+    "test_brier": 0.0803,
+    "mean_probability": 0.1202,
+    "alert_rate_p_gt_0.3": 0.1108
+  },
+  "canary": {
+    "test_roc_auc": 0.8485,
+    "test_log_loss": 0.3145,
+    "test_brier": 0.0904,
+    "mean_probability": 0.1966,
+    "alert_rate_p_gt_0.3": 0.2225
+  },
+  "canary_config": {
+    "max_depth": 2,
+    "min_samples_leaf": 5,
+    "class_weight": {
+      "0": 1,
+      "1": 2
+    },
+    "seed": 20260101
+  },
+  "artifact": "gs://itcs355-6688143/itcs355/lab3-registry/canary-worse/model.joblib",
+  "registry_version": "2",
+  "note": "registry_version corrected to 2 after the adapter bug fix (Vertex list-version shows 2; the first run printed 1)"
+}

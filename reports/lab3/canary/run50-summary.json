@@ -1,0 +1,50 @@
+{
+  "tag": "run50",
+  "stable": "itcs355-serve-v1-2cpu-115928",
+  "canary": "itcs355-serve-v2-2cpu-121417",
+  "split": "50/50",
+  "window_s": 120,
+  "z_threshold": 4.0,
+  "load_start": "2026-09-26T05:23:49.795+00:00",
+  "baseline": {
+    "n": 13108,
+    "mean_p": 0.12196355813411976,
+    "sd_p": 0.13216602918762133,
+    "log_loss": 0.2719182236375774
+  },
+  "baseline_max_abs_z": 0.9,
+  "shift": {
+    "at": "2026-09-26T05:27:16.652+00:00",
+    "requested": {
+      "itcs355-serve-v1-2cpu-115928": 50,
+      "itcs355-serve-v2-2cpu-121417": 50
+    },
+    "reported": [
+      {
+        "percent": 50,
+        "revisionName": "itcs355-serve-v1-2cpu-115928"
+      },
+      {
+        "percent": 50,
+        "revisionName": "itcs355-serve-v2-2cpu-121417"
+      }
+    ]
+  },
+  "detected": "2026-09-26T05:27:47.352+00:00",
+  "detection_s": 30.1,
+  "rollback": {
+    "at": "2026-09-26T05:27:51.341+00:00",
+    "requested": {
+      "itcs355-serve-v1-2cpu-115928": 100
+    },
+    "reported": [
+      {
+        "percent": 100,
+        "revisionName": "itcs355-serve-v1-2cpu-115928"
+      }
+    ]
+  },
+  "rollback_s_after_detection": 4.7,
+  "requests": 29696,
+  "errors": 0
+}

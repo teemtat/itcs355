@@ -273,20 +273,27 @@ class GcpAdapter(CloudAdapter):
             "--format=value(model)", "--quiet",
         ]
         if existing:
-            cmd.append(f"--parent-model={existing[0].strip()}")
+            # `value(name)` prints the bare model id, and --parent-model wants the full
+            # resource name — given only the id it fails with "Location ID is not
+            # provided", which is how version 2 was first refused.
+            parent = existing[0].strip()
+            if "/" not in parent:
+                parent = (f"projects/{self.cfg.project_id}/locations/{self.cfg.region}"
+                          f"/models/{parent}")
+            cmd.append(f"--parent-model={parent}")
 
         out = _run(cmd).strip()
         if not out:
             raise RuntimeError("model upload returned nothing")
         # gcloud prints the model resource name, sometimes with @<version> and sometimes
-        # without. The caller was promised a VERSION, so ask for it rather than parse it
-        # out of whatever this gcloud release happens to print.
-        if "@" in out:
-            return out.rsplit("@", 1)[-1]
+        # without — and when uploading under a parent it printed "@1" for what the
+        # registry recorded as version 2. The caller was promised a VERSION, so ask the
+        # registry for the newest one rather than parse whatever this release prints.
+        model_id = out.split("@", 1)[0].rsplit("/", 1)[-1]
         return _run([
-            "gcloud", "ai", "models", "describe", out,
+            "gcloud", "ai", "models", "list-version", model_id,
             f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
-            "--format=value(versionId)",
+            "--sort-by=~versionCreateTime", "--limit=1", "--format=value(versionId)",
         ]).strip()
 
     # Prebuilt serving containers are published to three MULTI-REGION hosts, not to
@@ -478,6 +485,34 @@ class GcpAdapter(CloudAdapter):
         ])
         return {"at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
                 "requested": split, "reported": self.traffic(endpoint)}
+
+    def request_counts(self, endpoint: str, start: str, end: str,
+                       step_s: int = 60) -> list[dict[str, Any]]:
+        """Requests per revision per step, as the PLATFORM counted them (Cloud Monitoring
+        run.googleapis.com/request_count). Independent of anything the client logged,
+        which is what makes it evidence that traffic moved. start/end: RFC 3339 UTC."""
+        token = _run(["gcloud", "auth", "print-access-token"])
+        flt = ('metric.type="run.googleapis.com/request_count" AND '
+               f'resource.labels.service_name="{endpoint}"')
+        q = urllib.parse.urlencode({
+            "filter": flt, "interval.startTime": start, "interval.endTime": end,
+            "aggregation.alignmentPeriod": f"{step_s}s",
+            "aggregation.perSeriesAligner": "ALIGN_SUM",
+            "aggregation.crossSeriesReducer": "REDUCE_SUM",
+            "aggregation.groupByFields": "resource.labels.revision_name",
+        })
+        url = (f"https://monitoring.googleapis.com/v3/projects/{self.cfg.project_id}"
+               f"/timeSeries?{q}")
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            series = json.load(r).get("timeSeries", [])
+        out = []
+        for ts in series:
+            rev = ts["resource"]["labels"]["revision_name"]
+            for pt in ts.get("points", []):
+                out.append({"end": pt["interval"]["endTime"], "revision": rev,
+                            "requests": int(pt["value"].get("int64Value", 0))})
+        return sorted(out, key=lambda r: (r["end"], r["revision"]))
 
     def _serving_services(self, lab: str) -> list[str]:
         return _run([

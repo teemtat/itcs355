@@ -1,0 +1,29 @@
+[2026-09-26T05:14:50.376+00:00] baseline 180s on itcs355-serve-v1-2cpu-115928
+  baseline n=12639 mean_p=0.1218 sd=0.1321 log_loss=0.2709
+[2026-09-26T05:18:17.224+00:00] traffic 90/10 -> watching
+  t+   10s  n=9654  mean_p=0.12266  z=0.66  log_loss=0.27978
+  t+   20s  n=9655  mean_p=0.12224  z=0.35  log_loss=0.27625
+  t+   30s  n=9656  mean_p=0.12331  z=1.14  log_loss=0.27551
+  t+   40s  n=9677  mean_p=0.12375  z=1.47  log_loss=0.27501
+  t+   50s  n=9719  mean_p=0.12386  z=1.55  log_loss=0.2733
+  t+   60s  n=9715  mean_p=0.1246  z=2.11  log_loss=0.2701
+  t+   70s  n=9745  mean_p=0.12456  z=2.08  log_loss=0.27061
+  t+   80s  n=9811  mean_p=0.12429  z=1.89  log_loss=0.26859
+  t+   90s  n=9821  mean_p=0.12424  z=1.85  log_loss=0.266
+  t+  100s  n=9815  mean_p=0.12434  z=1.93  log_loss=0.26379
+  t+  110s  n=9844  mean_p=0.12518  z=2.55  log_loss=0.26189
+  t+  120s  n=9861  mean_p=0.12513  z=2.52  log_loss=0.25949
+  t+  130s  n=9840  mean_p=0.12527  z=2.62  log_loss=0.25787
+  t+  140s  n=9835  mean_p=0.1259  z=3.1  log_loss=0.25987
+  t+  150s  n=9846  mean_p=0.12624  z=3.35  log_loss=0.26068
+  t+  160s  n=9834  mean_p=0.12598  z=3.15  log_loss=0.25815
+  t+  170s  n=9820  mean_p=0.12677  z=3.74  log_loss=0.26095
+  t+  180s  n=9840  mean_p=0.12715  z=4.04  log_loss=0.26217
+  t+  190s  n=9833  mean_p=0.12795  z=4.63  log_loss=0.26123
+[2026-09-26T05:21:33.572+00:00] rolled back -> itcs355-serve-v1-2cpu-115928=100
+{
+  "detection_s": 190.3,
+  "baseline_max_abs_z": 0.86,
+  "requests": 42011,
+  "errors": 0
+}

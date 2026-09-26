@@ -59,6 +59,14 @@ PRICE_TABLE: dict[str, dict[str, float]] = {
         "e2-standard-4": 6.34,        # $0.190132/h
         "n2-standard-4": 9.19,        # $0.275554/h
         "n1-standard-4+t4": 25.2,     # UNVERIFIED — no GPU trial was run for Lab 2
+        # Lab 3 serving: Cloud Run, INSTANCE-based billing (CPU always allocated), which is
+        # what deploy() configures. Billing Catalog API, service 152E-C115-5142, read
+        # 2026-09-26, asia-southeast1:
+        #   Services CPU (Instance-based billing)     4D3C-D63E-1DF1  $0.0000216 /vCPU-s
+        #   Services Memory (Instance-based billing)  7550-6D11-4653  $0.0000024 /GiB-s
+        # No per-request fee under instance-based billing. Free tier ignored on purpose.
+        "run-1cpu-2gi": 3.17,         # (1 x 0.0000216 + 2 x 0.0000024) x 3600 = $0.09504/h
+        "run-2cpu-4gi": 6.34,         # (2 x 0.0000216 + 4 x 0.0000024) x 3600 = $0.19008/h
     },
 }
 
