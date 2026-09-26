@@ -107,7 +107,19 @@ contains a cold start. Cold start was measured on a scale-to-zero revision
 (`min-instances=0`, no traffic, left idle long enough to be reclaimed):
 `scripts/cold_start.py` → `reports/lab3/cold-start.json`.
 
-COLD_START_TABLE
+| Sample (idle 17 min first) | First request | Next 5 requests | Service log confirms a cold start |
+|---|---:|---:|---|
+| 05:47:27 UTC | **14.6 s** | 121–211 ms | yes: `model_loaded` at 05:47:42, `load_ms` 10,293 |
+| 06:06:15 UTC | **8.4 s**  | 125–175 ms | yes: `model_loaded` at 06:06:22, `load_ms` 3,788 |
+
+- **Cold start is 8–15 s, about 100× the warm p95.**
+- Most of it is the service's own startup: Python imports, fetching the model from the
+  registry bucket, and unpickling (3.8–10.3 s). Container start and the `/ready` startup
+  probe make up the rest.
+- On a scale-to-zero configuration, every first request after a quiet period would take
+  that long, and it would dominate p99.
+- That is why the target-meeting configuration keeps `min-instances=1`. It is also why
+  that configuration is paid for 24 h a day (see Cost).
 
 ## Batch size
 
@@ -343,3 +355,22 @@ per-hour price does not change; only how much of it is wasted.
 - **At any volume this endpoint can actually carry, a daily batch is cheaper. The warm
   endpoint is worth paying for only when a prediction is needed within seconds.**
 
+
+## Teardown
+
+`make teardown` (LAB=3 by default now) deleted the Cloud Run service `itcs355-serve` and
+all of its revisions at ~06:08 UTC. After that:
+- `gcloud run services list` returns 0 services.
+- No Vertex endpoint was ever created.
+- `make cost-report` finds nothing tagged `lab=3`.
+
+The record is in `reports/lab3/teardown.txt`.
+
+What is kept on purpose:
+- the image in Artifact Registry
+- `itcs355-6688143@2` in the model registry
+- the model file in the bucket
+
+These are storage, not compute: a few MB with no hourly charge.
+
+**Still check the billing console by hand.**
