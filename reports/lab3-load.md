@@ -21,7 +21,7 @@ sending requests at the same time, non-stop.
 > Measured from my laptop, so the trip to Singapore and back counts.
 
 It is in `loadtest/k6.js`. I committed it at 11:49 (commit `5242792`), and the first load
-test ran at 11:52.
+test started at ~11:51 (its result file was written at 11:52:08, after a 60-second run).
 
 - **Why 200 ms:** the users are dashboards that show a machine's risk when a new reading
   comes in. Above ~200 ms the update stops feeling instant.

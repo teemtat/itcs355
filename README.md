@@ -202,7 +202,7 @@ the same one that would go to any provider.
 **p95 under 200 ms for one-row `/predict`, 10 users at once, measured from my laptop.**
 
 I committed it in `loadtest/k6.js` (commit `5242792`, 11:49) before the first load test
-ran (11:52). 200 ms because a dashboard update feels instant below that. 10 because that is
+started (~11:51). 200 ms because a dashboard update feels instant below that. 10 because that is
 roughly how many dashboards would be open at peak.
 
 ---
