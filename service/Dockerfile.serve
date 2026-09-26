@@ -30,6 +30,6 @@ EXPOSE 8080
 #
 # PORT: Cloud Run injects it; 8080 everywhere else. WEB_CONCURRENCY: one worker per
 # vCPU, set by deploy() from the instance size. --no-access-log because the service
-# already writes one structured line per request. Shell form so both expand; exec so
+# already writes one structured line per request. sh -c so both expand; exec so
 # uvicorn is PID 1 and receives SIGTERM on scale-down.
-CMD exec uvicorn service.app:app --host 0.0.0.0 --port "${PORT:-8080}" --workers "${WEB_CONCURRENCY:-2}" --no-access-log
+CMD ["sh", "-c", "exec uvicorn service.app:app --host 0.0.0.0 --port \"${PORT:-8080}\" --workers \"${WEB_CONCURRENCY:-2}\" --no-access-log"]
