@@ -1,4 +1,4 @@
-# ITCS355 — Reproducible Training (Lab 1) and Tracking & Registry (Lab 2)
+# ITCS355 — Reproducible Training (Lab 1), Tracking & Registry (Lab 2), Serving (Lab 3)
 
 > **Course materials live in [`course/`](course/README.md)** — syllabus, slides, the faculty
 > specification, all five lab handouts, and the project brief. Every document is Markdown and
@@ -164,6 +164,97 @@ survived, and the next job skipped those 5 and resumed at trial 06. Logs in
 
 ---
 
+## Lab 3 — how to run it
+
+```bash
+make serve-image-push                    # build, push, digest goes to reports/lab3/serve-image.txt
+make deploy VERSION=1 INSTANCE=2cpu-4gi  # Cloud Run, model pulled from the registry by version
+make smoke                               # 3 known payloads: single, batch, one that must 422
+make loadtest LABEL=2cpu                 # k6 at 1, 10, 50 concurrent users
+make teardown                            # deletes the service. Run it the moment you finish
+```
+
+Canary run: `python scripts/canary_watch.py --stable <v1 revision> --canary <v2 revision> --split 90 --tag run90`
+
+Results and my write-up: [`reports/lab3-load.md`](reports/lab3-load.md)
+
+---
+
+## Why Cloud Run and not a Vertex endpoint
+
+A Vertex endpoint only forwards one predict route, so `/predict/batch` would be unreachable
+without changing the service. Cloud Run forwards every path as-is and splits traffic
+between revisions natively. It also takes about 40 seconds to deploy instead of 15+ minutes.
+
+The model still comes from the Vertex registry. `deploy()` looks up `name@version`, finds
+the `gs://` folder the registry recorded, and passes it to the container. The container
+downloads it once at startup through the adapter. That fixes the Lab 2 limitation: the
+served model comes from object storage, not a folder on my laptop.
+
+Where the platform difference lives: the startup probe points at `/ready` and liveness at
+`/health`. That is configured in `cloudlayer/gcp.py`, not in the Dockerfile. The image is
+the same one that would go to any provider.
+
+---
+
+## Latency target
+
+**p95 under 200 ms for one-row `/predict`, 10 users at once, measured from my laptop.**
+
+I committed it in `loadtest/k6.js` (commit `5242792`, 11:49) before the first load test
+ran (11:52). 200 ms because a dashboard update feels instant below that. 10 because that is
+roughly how many dashboards would be open at peak.
+
+---
+
+## Lab 3 — what happened
+
+**Did it meet the target:** not on 1 vCPU (p95 305 ms at 10 users). Yes on 2 vCPU
+(179 ms). Config that meets it: `2cpu-4gi`, one instance always on.
+
+**Breaking point:** 9 users on 1 vCPU, 18 on 2 vCPU. No errors at any level. It just gets
+slower. Once it is overloaded, the server's own timer still says ~8 ms while the client
+waits 400+ ms, because requests queue before they reach the app. Only the client-side
+number shows it.
+
+**Batch:** one call with 100 rows takes about the same time as one call with 1 row. So 100
+rows in one batch is ~87× faster than 100 separate calls. Most of the cost is the round
+trip, not the model.
+
+**Payload size:** up to the 100-row cap, the model is still most of the server time.
+Parsing and converting only overtake it at about 1,000 rows (~150 KB), which the API
+does not allow anyway.
+
+**Bigger instance:** 2× the price, 2× the throughput. Cost per prediction is the same. The
+extra money buys headroom, not efficiency.
+
+**Cold start:** 8–15 seconds when scaled to zero. Most of it is loading the model. That is
+why I keep one instance warm.
+
+**Canary:** v2 is a model that looks fine on AUC (−0.005) but pushes every probability up.
+At 90/10, the detector caught it in **196 s** by watching the average predicted
+probability for the whole endpoint. It never looks at which version answered. Rollback took
+6 s. At 50/50 it caught it in 34 s, but half the users got the bad model while it did.
+Log loss never showed anything, too diluted at 10%.
+
+**Evidence traffic moved:** every response carries its model version, and Cloud Monitoring
+counts requests per revision. Both show v2 at ~10% during the canary and 0 after the
+rollback. Chart: [`reports/lab3/canary/canary.png`](reports/lab3/canary/canary.png)
+
+**Cost per 1,000 predictions:** 0.076 THB, assuming 25% utilisation. At 5% it is 0.38 THB,
+so this number is only as good as that guess. The warm instance is 152 THB a day whether
+anyone calls it or not. A daily batch job would be cheaper at any volume this endpoint can
+handle. The endpoint is only worth it if predictions are needed right away.
+
+**Bug found:** registering version 2 failed. Lab 2's `register_model` passed a bare model
+id as `--parent-model`, and Vertex needs the full resource name. It also returned the wrong
+version number. Both are fixed in `cloudlayer/gcp.py`.
+
+**Teardown:** done at 06:08 UTC, 0 services left, `make cost-report` passes. Record in
+[`reports/lab3/teardown.txt`](reports/lab3/teardown.txt).
+
+---
+
 ## Notes
 
 - `make reproduce` only needs Docker — it builds the data and trains inside the container, so it
@@ -173,3 +264,7 @@ survived, and the next job skipped those 5 and resumed at trial 06. Logs in
 - `make teardown` cancels anything still running and removes failed jobs. It keeps
   SUCCEEDED ones, because a registered version's `training_job_id` points at one;
   `make teardown PURGE=True` removes those too.
+- Since Lab 3, `make teardown` defaults to `LAB=3` and also deletes the Cloud Run service.
+  For Lab 2 resources use `make teardown LAB=2`.
+- The serving image does not include MLflow. The deployed service never uses it, and leaving
+  it out keeps the image small, which shortens cold starts.
