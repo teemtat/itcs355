@@ -1,13 +1,16 @@
 # ITCS355 Lab 3 — serving image
 #
-# TODO(Lab 3): pin by digest, as you did for the training image in Lab 1.
-FROM python:3.11-slim AS builder
+# Base image pinned BY DIGEST — the same python:3.11-slim index the Lab 1 training image
+# pins, so both images share one interpreter. Refresh deliberately, never implicitly:
+#     docker buildx imagetools inspect python:3.11-slim   # "Digest:" line
+FROM python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS builder
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /build
 COPY requirements-serve.txt ./
-RUN pip install --prefix=/install -r requirements-serve.txt
+# --require-hashes: a package whose bytes differ from the lock file fails the build.
+RUN pip install --require-hashes --prefix=/install -r requirements-serve.txt
 
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS runtime
 RUN useradd --create-home --uid 10001 runner
 ENV PYTHONUNBUFFERED=1 PYTHONPATH=/app
 COPY --from=builder /install /usr/local
@@ -18,10 +21,15 @@ COPY --chown=runner:runner cloudlayer/ ./cloudlayer/
 USER runner
 
 EXPOSE 8080
-# TODO(Lab 3): your provider expects specific health and predict paths.
-#   AWS SageMaker  -> /ping and /invocations
-#   Azure ML       -> configurable liveness route on the deployment
-#   Vertex AI      -> health and predict routes declared on the Model resource
-# Absorb the difference in cloudlayer/, or map the paths here. Do NOT rename the routes
-# in service/app.py — that is what makes the image non-portable.
-CMD ["uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "2"]
+# Route paths are NOT mapped here. The deploy target is Cloud Run, which forwards every
+# path unchanged, so /predict, /predict/batch, /health and /ready all work as written.
+# What differs per platform is which route the platform probes, and that is configured
+# by cloudlayer/gcp.py deploy(): startup probe -> /ready, liveness probe -> /health.
+# (SageMaker would need /ping and /invocations; Vertex would need the routes declared on
+# the Model resource. Both are adapter configuration too — the image stays the same.)
+#
+# PORT: Cloud Run injects it; 8080 everywhere else. WEB_CONCURRENCY: one worker per
+# vCPU, set by deploy() from the instance size. --no-access-log because the service
+# already writes one structured line per request. Shell form so both expand; exec so
+# uvicorn is PID 1 and receives SIGTERM on scale-down.
+CMD exec uvicorn service.app:app --host 0.0.0.0 --port "${PORT:-8080}" --workers "${WEB_CONCURRENCY:-2}" --no-access-log

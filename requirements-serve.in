@@ -1,0 +1,17 @@
+# Serving image only. Compile to requirements-serve.txt WITH HASHES, for the image's
+# interpreter and platform (python 3.11, linux/amd64), not the laptop's:
+#   uv pip compile --generate-hashes --python-version 3.11 \
+#     --python-platform x86_64-manylinux_2_28 requirements-serve.in -o requirements-serve.txt
+#
+# No mlflow. The deployed service loads a registered version through the adapter
+# (MODEL_URI, resolved from the registry at deploy time), never through MLflow, and
+# mlflow roughly triples the image — which is cold-start time on a scale-to-zero service.
+fastapi==0.141.1
+uvicorn==0.34.0
+pydantic==2.13.5
+pandas==3.0.2
+numpy==2.4.4
+scikit-learn==1.8.0
+joblib==1.4.2
+# src.data and cloudlayer.gcp import yaml at module level
+PyYAML==6.0.3

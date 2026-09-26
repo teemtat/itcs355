@@ -17,14 +17,15 @@ MACHINE ?= n1-standard-4
 TRIALS  ?= 16
 BUDGET  ?= 150
 SWEEP   ?= 5
-LAB     ?= 2
+LAB     ?= 3
 PURGE   ?= False
 STUDY       ?= lab2-final
 STUDY_LOCAL ?= reports/remote-mlruns-final
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce study verify clean teardown \
         tune train-remote tune-remote pull-runs compare register restore-registry reload-check serve serve-image loadtest drift \
-        inject-drift pipeline cost swap-check llm-eval llm-gate
+        inject-drift pipeline cost swap-check llm-eval llm-gate \
+        serve-image-push deploy smoke url cost-report
 
 help:
 	@grep -E "^[a-zA-Z_-]+:.*?## .*$$" $(MAKEFILE_LIST) | awk -F":.*?## " "{printf \"  %-20s %s\\n\", \$$1, \$$2}"
@@ -87,7 +88,7 @@ study: ## Lab 1 Task 5: max_depth sweep at the fixed seed, then the seed spread 
 verify: ## Check the produced metric against the README claim
 	python scripts/verify_metric.py
 
-teardown: ## Cancel running jobs and remove dead ones for LAB (default 2)
+teardown: ## Delete Cloud Run services, cancel jobs, remove dead ones for LAB (default 3)
 	@python -c "from src import config; from cloudlayer.factory import get_adapter; \
 	cfg=config.load(); \
 	[print(' ', l) for l in get_adapter(cfg).teardown(cfg.tags($(LAB)), purge=$(PURGE))]"
@@ -125,6 +126,15 @@ reload-check: ## Load the registered model by version and score rows
 	$(FILESTORE) python scripts/reload_check.py --name $(MODEL_REGISTRY_NAME) --version $(VERSION)
 
 # --- Lab 3 -------------------------------------------------------------------
+SERVICE  ?= itcs355-serve
+INSTANCE ?= 1cpu-2gi
+VERSION  ?= 1
+VUS      ?= 10
+SERVE_CTL = python scripts/serve_ctl.py --endpoint $(SERVICE)
+# The load test hits the deployed service unless TARGET is given (e.g. http://localhost:8080).
+TARGET   ?= $(shell $(SERVE_CTL) url 2>/dev/null)
+TOKEN    ?= $(shell $(SERVE_CTL) token 2>/dev/null)
+
 serve: ## Run the inference service locally on :8080
 	python scripts/export_model.py --out reports/model.joblib
 	MODEL_PATH=reports/model.joblib MODEL_VERSION=local uvicorn service.app:app --port 8080
@@ -132,11 +142,30 @@ serve: ## Run the inference service locally on :8080
 serve-image: ## Build the serving image
 	docker buildx build --platform $(PLATFORM) -f service/Dockerfile.serve -t itcs355-serve:$(TAG) --load .
 
-loadtest: ## Load test at three concurrency levels
+serve-image-push: serve-image ## Push the serving image; its digest ref goes to reports/lab3/serve-image.txt
+	@mkdir -p reports/lab3
+	python -c "from src import config; from cloudlayer.factory import get_adapter; \
+	print(get_adapter(config.load()).push_image('itcs355-serve:$(TAG)'))" | tee reports/lab3/serve-image.txt
+
+deploy: ## Deploy registry VERSION on INSTANCE (adapter.deploy), all traffic
+	$(SERVE_CTL) deploy --version $(VERSION) --instance $(INSTANCE)
+
+smoke: ## Three known payloads through adapter.invoke
+	$(SERVE_CTL) smoke
+
+url: ## Print the endpoint URL
+	@$(SERVE_CTL) url
+
+loadtest: ## Load test at three concurrency levels (1, 10, 50)
+	@mkdir -p reports/lab3/k6
 	@for vus in 1 10 50; do \
 	  echo "=== $$vus VUs ==="; \
-	  k6 run -e TARGET=$(TARGET) -e VUS=$$vus loadtest/k6.js || true; \
+	  k6 run -q -e TARGET=$(TARGET) -e TOKEN=$(TOKEN) -e VUS=$$vus -e LABEL=$(LABEL) \
+	    --summary-export reports/lab3/k6/$(or $(LABEL),run)-c$$vus.json loadtest/k6.js || true; \
 	done
+
+cost-report: ## Confirm nothing tagged LAB is left running (billing is the final word)
+	python scripts/teardown_verify.py --lab $(LAB)
 
 # --- Lab 4 -------------------------------------------------------------------
 inject-drift: ## Shift a feature's distribution on purpose

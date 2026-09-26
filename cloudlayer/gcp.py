@@ -16,10 +16,16 @@ Notes:
 from __future__ import annotations
 
 import json
+import os
+import re
+import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +67,33 @@ class GcpAdapter(CloudAdapter):
 
     def download(self, uri: str, local_path: str) -> None:
         Path(local_path).parent.mkdir(parents=True, exist_ok=True)
-        _run(["gcloud", "storage", "cp", uri, str(local_path), "--quiet"])
+        if shutil.which("gcloud"):
+            _run(["gcloud", "storage", "cp", uri, str(local_path), "--quiet"])
+        else:
+            self._download_rest(uri, local_path)
+
+    def _download_rest(self, uri: str, local_path: str) -> None:
+        """Download without gcloud or an SDK — the serving container has neither.
+
+        Inside Cloud Run (or any GCP compute) the metadata server hands out a token for
+        the runtime service account; the object comes from the JSON API with it. Lab 3's
+        container reaches this through download(), so service/ never sees a gs:// detail.
+        """
+        if not uri.startswith("gs://"):
+            raise ValueError(f"expected gs://bucket/object, got {uri!r}")
+        bucket, _, obj = uri.removeprefix("gs://").partition("/")
+        meta = urllib.request.Request(
+            "http://metadata.google.internal/computeMetadata/v1/instance/"
+            "service-accounts/default/token",
+            headers={"Metadata-Flavor": "Google"},
+        )
+        with urllib.request.urlopen(meta, timeout=10) as r:
+            token = json.load(r)["access_token"]
+        url = (f"https://storage.googleapis.com/storage/v1/b/{bucket}/o/"
+               f"{urllib.parse.quote(obj, safe='')}?alt=media")
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=60) as r, open(local_path, "wb") as fh:
+            shutil.copyfileobj(r, fh)
 
     def download_prefix(self, key: str, local_dir: str) -> int:
         dest = Path(local_dir)
@@ -279,6 +311,181 @@ class GcpAdapter(CloudAdapter):
         return f"{host}-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-5:latest"
 
 
+    # --- Lab 3 ---------------------------------------------------------------
+    #
+    # Target: Cloud Run, not a Vertex endpoint. Cloud Run forwards every path unchanged
+    # (so /predict/batch is reachable, which a Vertex endpoint's single predict route is
+    # not), splits traffic across revisions natively, and bills per instance-second.
+    # The model still comes from the Vertex Model Registry by version: deploy() resolves
+    # name@version to the artifact the registry recorded and hands the container that
+    # location. The container fetches it once, at startup, through download() above.
+
+    _INSTANCE = re.compile(r"^(\d+)cpu-(\d+)gi$")
+
+    def _model_artifact(self, name: str, version: str) -> str:
+        ids = _run([
+            "gcloud", "ai", "models", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--filter=displayName={name}", "--format=value(name)", "--quiet",
+        ]).splitlines()
+        if len(ids) != 1:
+            raise RuntimeError(f"expected one registered model named {name!r}, found {len(ids)}")
+        model_id = ids[0].strip().rsplit("/", 1)[-1]
+        uri = _run([
+            "gcloud", "ai", "models", "describe", f"{model_id}@{version}",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(artifactUri)", "--quiet",
+        ]).strip()
+        if not uri.startswith("gs://"):
+            raise RuntimeError(f"{name}@{version} has no gs:// artifact (got {uri!r})")
+        return uri
+
+    def deploy(self, model_ref: str, endpoint: str, instance: str, *,
+               image: str | None = None, traffic: bool = True, tag: str | None = None,
+               min_instances: int = 1, max_instances: int = 1) -> str:
+        """Deploy registry version `model_ref` ("name@version") as a new revision of the
+        Cloud Run service `endpoint`. Returns the revision name.
+
+        instance      "<n>cpu-<m>gi", e.g. "1cpu-2gi". One uvicorn worker per vCPU.
+        traffic       False deploys the revision with no traffic (a canary waiting for
+                      set_traffic); True sends it 100%.
+        min/max       1/1 by default: one always-warm instance, so a load test measures
+                      one instance's capacity rather than the autoscaler's, and p99 is
+                      not a cold start. Scale-to-zero is measured separately (min 0).
+
+        Probes are where this platform's route difference lives: the startup probe hits
+        /ready, so no traffic reaches a revision whose model has not loaded; liveness
+        hits /health, so a slow request never gets a healthy container killed.
+        """
+        name, _, version = model_ref.partition("@")
+        if not version:
+            raise ValueError(f"model_ref must be name@version, got {model_ref!r}")
+        m = self._INSTANCE.match(instance)
+        if not m:
+            raise ValueError(f"instance must look like 1cpu-2gi, got {instance!r}")
+        cpu, mem = m.group(1), m.group(2)
+        image = image or os.environ.get("SERVE_IMAGE", "")
+        if "@sha256:" not in image:
+            raise ValueError(f"deploy a digest-pinned image, got {image!r}")
+
+        artifact = self._model_artifact(name, version)
+        labels = self.cfg.tags(3)
+        env = {
+            "CLOUD_PROVIDER": "gcp",
+            "MODEL_URI": artifact,
+            "MODEL_VERSION": version,
+            "MODEL_REF": model_ref,
+            "WEB_CONCURRENCY": cpu,
+        }
+        suffix = f"v{version}-{cpu}cpu-{time.strftime('%H%M%S')}"
+        cmd = [
+            "gcloud", "run", "deploy", endpoint,
+            f"--image={image}",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--cpu={cpu}", f"--memory={mem}Gi",
+            "--concurrency=80",
+            f"--min-instances={min_instances}", f"--max-instances={max_instances}",
+            # Instance-based billing: CPU stays allocated between requests. The cost
+            # figures in Task 5 assume exactly this, so it is set, not defaulted.
+            "--no-cpu-throttling",
+            "--no-allow-unauthenticated",
+            f"--revision-suffix={suffix}",
+            "--set-env-vars=" + ",".join(f"{k}={v}" for k, v in env.items()),
+            "--labels=" + ",".join(f"{k}={v}" for k, v in labels.items()),
+            "--startup-probe=httpGet.path=/ready,periodSeconds=2,failureThreshold=90,timeoutSeconds=2",
+            "--liveness-probe=httpGet.path=/health,periodSeconds=15,timeoutSeconds=3",
+            "--quiet", "--format=value(status.latestCreatedRevisionName)",
+        ]
+        if not traffic:
+            cmd.append("--no-traffic")
+        if tag:
+            cmd.append(f"--tag={tag}")
+        return _run(cmd).strip() or f"{endpoint}-{suffix}"
+
+    def endpoint_url(self, endpoint: str, tag: str | None = None) -> str:
+        url = _run([
+            "gcloud", "run", "services", "describe", endpoint,
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(status.url)", "--quiet",
+        ]).strip()
+        if tag:  # https://svc-xyz.a.run.app -> https://tag---svc-xyz.a.run.app
+            url = url.replace("https://", f"https://{tag}---", 1)
+        return url
+
+    _token: tuple[float, str] | None = None
+
+    def auth_header(self) -> dict[str, str]:
+        """The service is not public. An identity token for the caller, cached ~50 min."""
+        now = time.time()
+        if not self._token or now - self._token[0] > 3000:
+            self._token = (now, _run(["gcloud", "auth", "print-identity-token"]).strip())
+        return {"Authorization": f"Bearer {self._token[1]}"}
+
+    def invoke(self, endpoint: str, payload: dict[str, Any], *,
+               url: str | None = None) -> dict[str, Any]:
+        """POST one payload. A payload with "rows" goes to /predict/batch.
+
+        Returns the status, the body, the model version the SERVICE reported (header),
+        and client-side latency — the caller decides what counts as a failure.
+        """
+        base = url or self.endpoint_url(endpoint)
+        path = "/predict/batch" if "rows" in payload else "/predict"
+        req = urllib.request.Request(
+            base + path, data=json.dumps(payload).encode(), method="POST",
+            headers={"Content-Type": "application/json", **self.auth_header()},
+        )
+        started = time.perf_counter()
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                status, headers, raw = r.status, r.headers, r.read()
+        except urllib.error.HTTPError as e:
+            status, headers, raw = e.code, e.headers, e.read()
+        latency_ms = (time.perf_counter() - started) * 1000
+        try:
+            body = json.loads(raw)
+        except ValueError:
+            body = {"raw": raw.decode(errors="replace")[:500]}
+        return {
+            "status": status,
+            "body": body,
+            "model_version": headers.get("x-model-version"),
+            "request_id": headers.get("x-request-id"),
+            "server_timing": headers.get("server-timing"),
+            "latency_ms": round(latency_ms, 2),
+        }
+
+    def traffic(self, endpoint: str) -> list[dict[str, Any]]:
+        raw = _run([
+            "gcloud", "run", "services", "describe", endpoint,
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=json(status.traffic)", "--quiet",
+        ])
+        return json.loads(raw).get("status", {}).get("traffic", [])
+
+    def set_traffic(self, endpoint: str, split: dict[str, int]) -> dict[str, Any]:
+        """Move traffic between revisions: {"<revision>": 90, "<revision>": 10}.
+
+        Returns the split the platform reports AFTER the change, with the UTC time the
+        call returned — rollback evidence is this record, not the command that was run.
+        """
+        if sum(split.values()) != 100:
+            raise ValueError(f"traffic must sum to 100, got {split}")
+        _run([
+            "gcloud", "run", "services", "update-traffic", endpoint,
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--to-revisions=" + ",".join(f"{k}={v}" for k, v in split.items()),
+            "--quiet",
+        ])
+        return {"at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+                "requested": split, "reported": self.traffic(endpoint)}
+
+    def _serving_services(self, lab: str) -> list[str]:
+        return _run([
+            "gcloud", "run", "services", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--filter=metadata.labels.lab={lab}", "--format=value(metadata.name)", "--quiet",
+        ]).split()
+
     def teardown(self, tags: dict[str, str], purge: bool = False) -> list[str]:
         """Stop and remove what these tags cover. Returns what was acted on.
 
@@ -292,14 +499,24 @@ class GcpAdapter(CloudAdapter):
         failed or cancelled ones — which nothing points at — are removed.
 
         Deletion is asynchronous. A successful return means accepted, not gone.
+
+        Lab 3: a Cloud Run service carrying the lab label is deleted outright. It has a
+        warm minimum instance, so it bills by the hour whether or not anyone calls it,
+        and nothing points at it — the registry version it served stays registered.
         """
+        acted: list[str] = []
+        for svc in self._serving_services(tags.get("lab", "")):
+            _run(["gcloud", "run", "services", "delete", svc,
+                  f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+                  "--quiet"])
+            acted.append(f"deleted   Cloud Run service {svc}")
+
         listed = _run([
             "gcloud", "ai", "custom-jobs", "list",
             f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
             "--format=value(name,state,labels.lab)", "--quiet",
         ]).splitlines()
 
-        acted: list[str] = []
         for line in listed:
             parts = line.split("\t")
             if len(parts) < 3 or parts[2] != tags.get("lab"):
@@ -336,7 +553,6 @@ class GcpAdapter(CloudAdapter):
         if out.returncode != 0 or '"error"' in out.stdout:
             raise RuntimeError(f"delete {name} failed: {out.stdout or out.stderr}")
 
-    # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
     # teardown                          -> Lab 5 (filter resources by label)

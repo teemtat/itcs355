@@ -35,6 +35,7 @@ class PredictUser(HttpUser):
     @task(1)
     def predict_batch(self):
         rows = [sample_payload() for _ in range(50)]
-        # TODO(Lab 3): compare this against 50 single calls. Report the difference,
-        # and the concurrency at which the advantage disappears.
+        # Batch-vs-singles is measured with k6 (MODE=batch, ROWS=100 vs 100 single calls);
+        # results are in reports/lab3-load.md, "Batch size". This file is kept as the
+        # mixed-traffic alternative and is not the committed evidence.
         self.client.post("/predict/batch", json={"rows": rows})
