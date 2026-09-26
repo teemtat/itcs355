@@ -1,67 +1,81 @@
 # Lab 3 — Serving, load testing, and rollback
 
-Service: `itcs355-serve` on **Cloud Run**, asia-southeast1. Model: Vertex Model Registry
-`itcs355-6688143@1` (the Lab 2 model, RandomForest depth 4). Image:
-`itcs355-serve@sha256:97e7928a…` (full reference in `reports/lab3/serve-image.txt`).
-Client: k6 v1 on a laptop in Thailand. Raw k6 summaries: `reports/lab3/k6/`. Every deploy
-and traffic change, with its UTC time: `reports/lab3/events.jsonl`.
+I put the Lab 2 model behind an API, tested how much traffic it can take, and practised
+rolling back a bad version.
 
-## Latency target (stated before measuring)
+- **Where it runs:** Cloud Run, Singapore (asia-southeast1). Service name `itcs355-serve`.
+- **Model:** `itcs355-6688143@1` from the Vertex model registry (the Lab 2 model).
+- **Image:** `itcs355-serve@sha256:97e7928a…` (full name in `reports/lab3/serve-image.txt`).
+- **Load tests:** k6, run from my laptop in Thailand. Raw results in `reports/lab3/k6/`.
+- **Log of every deploy and traffic change** (with time): `reports/lab3/events.jsonl`.
 
-> **p95 < 200 ms for single-row `POST /predict`, at 10 concurrent clients, error rate < 1%,**
-> measured from the client, so it includes the Thailand–Singapore round trip.
+A quick guide to the numbers: **p50** is the typical request. **p95** means 95% of
+requests were faster than this. **p99** is the slow tail. "Concurrency 10" means 10 users
+sending requests at the same time, non-stop.
 
-It is written into `loadtest/k6.js` as a k6 threshold. Commit `5242792`
-(2026-09-26 11:49 +07) added it. The first run against the deployed endpoint started at
-11:52 +07. Why 200 ms: an operator dashboard scores a machine when its reading arrives,
-and past ~200 ms the update stops feeling immediate. Why 10: about ten dashboards open
-at peak.
+---
 
-## Deployment
+## My latency target (set before measuring)
+
+> **p95 under 200 ms for a one-row `/predict`, with 10 users at once, and under 1% errors.**
+> Measured from my laptop, so the trip to Singapore and back counts.
+
+It is in `loadtest/k6.js`. I committed it at 11:49 (commit `5242792`), and the first load
+test ran at 11:52.
+
+- **Why 200 ms:** the users are dashboards that show a machine's risk when a new reading
+  comes in. Above ~200 ms the update stops feeling instant.
+- **Why 10 users:** that is about how many dashboards would be open at the busiest time.
+
+---
+
+## How it's deployed
 
 | | |
 |---|---|
-| Platform | Cloud Run service, one revision per model version × instance size |
-| Instance | `1cpu-2gi` first, then `2cpu-4gi`. `min-instances=1`, `max-instances=1`, instance-based billing |
-| Probes | startup → `/ready` (no traffic until the model is loaded), liveness → `/health` |
-| Model load | once, at startup. `deploy()` resolves `name@version` in the Vertex registry to its `gs://` artifact and passes it as `MODEL_URI`. The container fetches it through `adapter.download()` |
+| Platform | Cloud Run. Each model version / machine size is its own "revision" |
+| Machine size | first 1 vCPU + 2 GB, then 2 vCPU + 4 GB. Always exactly 1 instance running |
+| Health checks | Cloud Run waits for `/ready` before sending any traffic, and uses `/health` to check it's still alive |
+| Loading the model | once, when the container starts. `deploy()` looks up `name@version` in the registry and gives the container the `gs://` folder. The container downloads it through the adapter |
 | Startup log | `{"event":"model_loaded","model_version":"1","model_uri":"gs://…/lab2-registry/v1","load_ms":7435.1}` |
-| Smoke | `make smoke`: single → 200, batch(2) → 200, out-of-range → 422, all with `model_version` |
+| Smoke test | `make smoke`: one row → 200, batch of 2 → 200, bad input → 422. All answers include `model_version` |
 
-`max-instances=1` is deliberate. The numbers below describe what **one instance** can do,
-not what the autoscaler can hide.
+I fixed it at 1 instance on purpose. The numbers below show what **one machine** can
+handle. If Cloud Run could add machines, it would hide the limit.
 
-## Three concurrency levels
+---
 
-60 s per level, single-row `/predict`. `srv` is the server's own time from the
-`Server-Timing` header.
+## Results at 1, 10 and 50 users
 
-### 1 vCPU / 2 GiB (`run-1cpu-2gi`)
+60 seconds per level, one row per request. "Server time" is how long the app itself took,
+without the network.
 
-| Concurrency | Throughput (req/s) | p50 | p95 | p99 | Errors | srv p50 |
+### 1 vCPU / 2 GB
+
+| Users | Requests/s | p50 | p95 | p99 | Errors | Server time (p50) |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1  | 15.2 | 56 ms  | 131 ms | 140 ms | 0.00% | 10 ms |
-| 10 | 48.5 | 200 ms | **305 ms** ✗ | 369 ms | 0.00% | 90 ms |
-| 50 | 63.7 | 785 ms | 873 ms | 920 ms | 0.00% | 10 ms |
+| 1  | 15.2 | 56 ms  | 131 ms | 140 ms | 0% | 10 ms |
+| 10 | 48.5 | 200 ms | **305 ms** ✗ | 369 ms | 0% | 90 ms |
+| 50 | 63.7 | 785 ms | 873 ms | 920 ms | 0% | 10 ms |
 
-### 2 vCPU / 4 GiB (`run-2cpu-4gi`), one instance size up
+### 2 vCPU / 4 GB (one size up)
 
-| Concurrency | Throughput (req/s) | p50 | p95 | p99 | Errors | srv p50 |
+| Users | Requests/s | p50 | p95 | p99 | Errors | Server time (p50) |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1  | 16.9  | 52 ms  | 112 ms | 131 ms | 0.00% | 10 ms |
-| 10 | 92.7  | 101 ms | **179 ms** ✓ | 236 ms | 0.00% | 27 ms |
-| 50 | 115.1 | 435 ms | 557 ms | 684 ms | 0.00% | 8 ms |
+| 1  | 16.9  | 52 ms  | 112 ms | 131 ms | 0% | 10 ms |
+| 10 | 92.7  | 101 ms | **179 ms** ✓ | 236 ms | 0% | 27 ms |
+| 50 | 115.1 | 435 ms | 557 ms | 684 ms | 0% | 8 ms |
 
-A second 40 s run at 10 on 2 vCPU gave p95 152 ms at 109 req/s (`2cpu-sweep-c10`).
+A second run at 10 users on 2 vCPU gave p95 152 ms at 109 requests/s.
 
-**The configuration that meets the target is `2cpu-4gi`**, one warm instance: p95 179 ms at
-concurrency 10.
+**Setup that meets the target: 2 vCPU / 4 GB, one instance always on.** p95 was 179 ms at
+10 users.
 
 ### Breaking point
 
-Sweeps of 40 s each:
+To find where it breaks, I ran more levels, 40 seconds each:
 
-| Concurrency | 1 vCPU p95 | 1 vCPU req/s | 2 vCPU p95 | 2 vCPU req/s |
+| Users | 1 vCPU p95 | 1 vCPU req/s | 2 vCPU p95 | 2 vCPU req/s |
 |---:|---:|---:|---:|---:|
 | 2  | 129 | 28.0 | | |
 | 4  | 132 | 55.9 | | |
@@ -75,91 +89,88 @@ Sweeps of 40 s each:
 | 18 | | | **229** | 113.9 |
 | 20 | | | 227 | 128.9 |
 
-- **1 vCPU breaks at concurrency 9** (p95 205 ms).
-- **2 vCPU breaks at concurrency 18** (p95 229 ms). 16 is the last level inside the
-  target, and only just (198 ms).
-- There were no errors at any level. The service fails by getting slower, not by
-  returning errors.
+- **1 vCPU breaks at 9 users** (p95 205 ms).
+- **2 vCPU breaks at 18 users** (p95 229 ms). 16 users still passes, just barely (198 ms).
+- **No errors at any level.** When it's overloaded it gets slower. It doesn't fail.
 
-**Reading the numbers.**
-- Throughput levels off at about 64 req/s on 1 vCPU and about 129 req/s on 2 vCPU,
-  which is roughly 15 ms of CPU per request.
-- Doubling the vCPUs doubles the ceiling. That means the ceiling is the server, not the
-  client (common failure mode: "flat ceiling regardless of concurrency"). The same k6
-  process on the same laptop pushed twice as many requests once the server had twice the
-  CPU.
-- Past saturation, the server's own time stays at ~8–10 ms while the client sees
-  400–800 ms. The extra time is queueing in front of the app, which the app cannot see.
-  So the server's own latency metric looks healthy during an overload, and only
-  client-side percentiles show the problem.
-- The p95 at concurrency 1 (~110–130 ms against a 51–56 ms median) comes from a minority
-  of slow round trips. The server-side p95 is 12–13 ms, so the extra is network, not
-  service.
-- The first 1-vCPU run at concurrency 10 (p95 305 ms) was slower than the repeat
-  (227 ms). Its server-side time was also higher (median 90 ms against 10 ms). It was the
-  first sustained load on a fresh instance. Both runs are over the target, so the
-  conclusion does not change, but that first run is the worst case.
+**What I learned from this:**
+- **There's a hard ceiling.** 1 vCPU tops out around 64 requests/s, 2 vCPU around 129.
+  Each request costs about 15 ms of CPU.
+- **The limit is the server, not my laptop.** Doubling the CPU doubled the ceiling, using
+  the same laptop running the same k6. If k6 were the problem, the ceiling wouldn't move.
+- **The server's own timer hides the problem.** When overloaded, the app says each request
+  took ~8–10 ms, but the client waited 400–800 ms. The requests were waiting in line before
+  they reached the app, so the app never saw that time. You only see it from the client.
+- **Why p95 is ~120 ms even with 1 user:** a few trips over the network are slow. The app
+  itself stayed at 12–13 ms, so it's the network, not the service.
+- **The first 1 vCPU run at 10 users was slower** (305 ms) than the repeat (227 ms). It was
+  the first heavy load on a fresh machine. Both fail the target, so the conclusion is the
+  same.
 
-### Cold start (reported separately)
+### Cold start (measured separately)
 
-The load-tested revisions keep one warm instance, so none of the percentiles above
-contains a cold start. Cold start was measured on a scale-to-zero revision
-(`min-instances=0`, no traffic, left idle long enough to be reclaimed):
-`scripts/cold_start.py` → `reports/lab3/cold-start.json`.
+In the tests above, one instance is always on, so none of those numbers include a cold
+start. To measure it, I deployed a copy that can scale to zero, left it idle for 17 minutes
+so it shut down, then sent one request. Script: `scripts/cold_start.py`, results in
+`reports/lab3/cold-start.json`.
 
-| Sample (idle 17 min first) | First request | Next 5 requests | Service log confirms a cold start |
+| When (UTC) | First request | Next 5 requests | Was it really a cold start? |
 |---|---:|---:|---|
-| 05:47:27 UTC | **14.6 s** | 121–211 ms | yes: `model_loaded` at 05:47:42, `load_ms` 10,293 |
-| 06:06:15 UTC | **8.4 s**  | 125–175 ms | yes: `model_loaded` at 06:06:22, `load_ms` 3,788 |
+| 05:47:27 | **14.6 s** | 121–211 ms | yes, the log shows the model loading (10.3 s) |
+| 06:06:15 | **8.4 s**  | 125–175 ms | yes, the log shows the model loading (3.8 s) |
 
-- **Cold start is 8–15 s, about 100× the warm p95.**
-- Most of it is the service's own startup: Python imports, fetching the model from the
-  registry bucket, and unpickling (3.8–10.3 s). Container start and the `/ready` startup
-  probe make up the rest.
-- On a scale-to-zero configuration, every first request after a quiet period would take
-  that long, and it would dominate p99.
-- That is why the target-meeting configuration keeps `min-instances=1`. It is also why
-  that configuration is paid for 24 h a day (see Cost).
+- **A cold start takes 8–15 seconds**, about 100 times slower than a normal request.
+- Most of that is the app starting up: loading Python, downloading the model, and opening
+  it.
+- If the service could scale to zero, the first user after every quiet period would wait
+  that long.
+- That's why I keep one instance always on. The downside is paying for it 24 hours a day
+  (see Cost).
 
-## Batch size
+---
 
-2 vCPU. Same row values, 100 predictions either way.
+## Batch vs single requests
 
-| | Latency per call (avg) | Predictions/s |
+2 vCPU. 100 predictions either way.
+
+| | Time per call (avg) | Predictions/s |
 |---|---:|---:|
-| 100 × `/predict`, one client, sequential | 58.5 ms × 100 = **5.85 s** | 16.9 |
-| 1 × `/predict/batch` with 100 rows, one client | **67 ms** | 1,472 |
-| `/predict` at concurrency 10 | 107 ms | 93 |
-| `/predict/batch` (100 rows) at concurrency 10 | 102 ms | **9,728** |
+| 100 separate `/predict` calls, one after another | 58.5 ms × 100 = **5.85 s** | 16.9 |
+| 1 `/predict/batch` call with 100 rows | **67 ms** | 1,472 |
+| `/predict`, 10 users | 107 ms | 93 |
+| `/predict/batch` (100 rows), 10 users | 102 ms | **9,728** |
 
-- One 100-row batch replaces 100 single calls at about **87× less wall time** for one
-  client, and **~100× the predictions per second** at concurrency 10.
-- The reason is that almost none of the cost is per row. The round trip (~45 ms) and the
-  fixed per-call overhead (HTTP, validation, one `predict_proba` call over 100 trees) are
-  paid once per request. Scoring 100 rows took 7.6 ms on the server, against 6.4 ms for
-  one row.
-- The advantage did not disappear at any concurrency tested. The batch run at
-  concurrency 10 was still inside the 200 ms p95.
+- **One batch of 100 is about 87× faster** than 100 separate calls. With 10 users it gives
+  about 100× more predictions per second.
+- **Why:** almost all the cost is per call, not per row. The network trip (~45 ms) and the
+  setup for each call are paid once, whether there's 1 row or 100. Scoring 100 rows took
+  7.6 ms, compared with 6.4 ms for 1 row.
+- Batch was faster at every level I tested. Batch calls at 10 users were still under
+  200 ms.
 
-## Payload size: where serialisation starts to dominate
+---
 
-**Deployed endpoint, 2 vCPU, concurrency 1**:
+## Payload size: when does converting the data cost more than the model?
 
-| Rows | Request bytes | Client p50 | Server total p50 | Server scoring p50 |
+**On the deployed service, 2 vCPU, 1 user:**
+
+| Rows | Request size | Client p50 | Server total (p50) | Model only (p50) |
 |---:|---:|---:|---:|---:|
-| 1   | 243    | 51 ms | 8.0 ms | 6.4 ms |
-| 10  | 1,379  | 55 ms | 8.2 ms | 6.5 ms |
-| 25  | 3,405  | 55 ms | 8.2 ms | 6.5 ms |
-| 50  | 6,948  | 53 ms | 8.8 ms | 6.9 ms |
-| 100 | 14,140 | 58 ms | 9.9 ms | 7.6 ms |
+| 1   | 243 B   | 51 ms | 8.0 ms | 6.4 ms |
+| 10  | 1.4 KB  | 55 ms | 8.2 ms | 6.5 ms |
+| 25  | 3.4 KB  | 55 ms | 8.2 ms | 6.5 ms |
+| 50  | 6.9 KB  | 53 ms | 8.8 ms | 6.9 ms |
+| 100 | 14.1 KB | 58 ms | 9.9 ms | 7.6 ms |
 
-- Up to the API's own cap of 100 rows (14 KB), serialisation never dominates. Scoring is
-  ~75% of the server's time, and the network round trip is most of what the client sees.
-- To find the crossover, the payload has to exceed the cap, so `scripts/payload_bench.py`
-  times the service's own code path in-process, stage by stage (on the laptop, so read
-  the shares rather than the milliseconds). Raw table: `reports/lab3/payload-bench.md`.
+Up to 100 rows (the most the API allows), the model is still ~75% of the server's time,
+and the network is most of what the client waits for.
 
-| Rows | Request | decode + validate | → DataFrame | score | encode |
+To find where it flips, I had to go past 100 rows, which the API rejects. So I timed the
+same code on my laptop, step by step (`scripts/payload_bench.py`, raw table in
+`reports/lab3/payload-bench.md`). My laptop is faster than the cloud machine, so compare
+the steps against each other, not the exact milliseconds.
+
+| Rows | Size | Read + check the JSON | Make a table (DataFrame) | Model | Write the answer |
 |---:|---:|---:|---:|---:|---:|
 | 100     | 15 KB   | 0.13 ms | 0.29 ms | 1.77 ms | 0.01 ms |
 | 1,000   | 156 KB  | 1.47 ms | 1.26 ms | 2.63 ms | 0.06 ms |
@@ -167,105 +178,108 @@ contains a cold start. Cold start was measured on a scale-to-zero revision
 | 20,000  | 3.1 MB  | 29.0 ms | 18.5 ms | 11.7 ms | 0.74 ms |
 | 100,000 | 15.6 MB | 164 ms  | 153 ms  | 56 ms   | 3.8 ms  |
 
-- Scoring cost barely grows with rows. A forest's cost is mostly per call, not per row.
-  Per-row Pydantic validation and building the DataFrame grow linearly.
-- **Request handling overtakes scoring at about 1,000 rows (~150 KB).** By 5,000 rows it
-  is ~2.7× the scoring time, and at 100,000 rows it is ~5.6×.
-- The 100-row cap stays well on the scoring-dominated side, so it is not what limits
-  throughput.
+- The model barely slows down with more rows. Checking the JSON and building the table grow
+  with every row.
+- **They overtake the model at about 1,000 rows (~150 KB).** At 5,000 rows they take ~2.7×
+  as long as the model, and at 100,000 rows ~5.6×.
+- The 100-row limit is well below that point, so it isn't what slows things down.
 
-## Instance size: one step up
+---
 
-| | 1cpu-2gi | 2cpu-4gi | Change |
+## One machine size up
+
+| | 1 vCPU / 2 GB | 2 vCPU / 4 GB | Change |
 |---|---:|---:|---:|
-| p95 at concurrency 10 | 305 ms (227 ms rerun) | 179 ms (152 ms rerun) | −41% (−33%) |
-| p95 at concurrency 1 | 131 ms | 112 ms | −15% |
-| Saturation throughput | ~64 req/s | ~129 req/s | ×2.0 |
-| Breaking concurrency | 9 | 18 | ×2 |
-| Price (instance-based, Singapore) | $0.09504/h = **3.17 THB/h** | $0.19008/h = **6.34 THB/h** | ×2.0 |
-| THB per 1,000 predictions at saturation | 0.0138 | 0.0137 | ≈ same |
+| p95 at 10 users | 305 ms (227 ms rerun) | 179 ms (152 ms rerun) | −41% (−33%) |
+| p95 at 1 user | 131 ms | 112 ms | −15% |
+| Max requests/s | ~64 | ~129 | ×2 |
+| Breaks at | 9 users | 18 users | ×2 |
+| Price | **3.17 THB/h** ($0.09504) | **6.34 THB/h** ($0.19008) | ×2 |
+| THB per 1,000 predictions at full load | 0.0138 | 0.0137 | same |
 
-- Twice the price buys twice the throughput. At full load the cost per prediction is the
-  same.
-- What the extra money buys is **headroom**: p95 under the target at the stated
-  concurrency.
-- Latency at concurrency 1 barely moves (−15%). An unloaded request is mostly network, and
-  more CPU does not shorten the round trip.
+- **Twice the price, twice the capacity.** At full load, each prediction costs the same.
+- **What the extra money buys is room to spare:** p95 now stays under the target at 10
+  users.
+- With just 1 user, it's only 15% faster. That request is mostly network time, and more CPU
+  doesn't make the network faster.
 
-Prices come from the Cloud Billing Catalog API (Cloud Run service `152E-C115-5142`, read
-2026-09-26):
-- instance-based CPU: $0.0000216 per vCPU-second (SKU `4D3C-D63E-1DF1`)
-- instance-based memory: $0.0000024 per GiB-second (SKU `7550-6D11-4653`)
-- USD/THB 33.36, as in `src/costs.py`
-- no per-request fee under instance-based billing; free tier ignored
+Where the prices come from: Google's Cloud Billing Catalog API (Cloud Run, read on
+2026-09-26, Singapore):
+- CPU: $0.0000216 per vCPU per second
+- Memory: $0.0000024 per GB per second
+- Exchange rate 33.36 THB/USD, same as `src/costs.py`
+- No per-request charge with this billing mode. I ignored the free tier.
+
+---
 
 ## Canary and rollback
 
-### The worse version
+### The bad version (v2)
 
-`itcs355-6688143@2` in the Vertex registry, made by `scripts/make_canary_model.py`. Scores
-from `reports/lab3/canary-model.json`:
+I trained a slightly worse model and registered it as `itcs355-6688143@2`
+(`scripts/make_canary_model.py`). Scores on the test set (`reports/lab3/canary-model.json`):
 
-| test split | v1 (stable) | v2 (canary) |
+| | v1 (current) | v2 (canary) |
 |---|---:|---:|
 | ROC AUC | 0.8533 | 0.8485 (−0.005) |
 | log loss | 0.2706 | 0.3145 |
 | Brier | 0.0803 | 0.0904 |
-| mean predicted p | 0.120 | 0.197 |
-| share with p > 0.3 | 11.1% | 22.3% |
+| average predicted probability | 0.120 | 0.197 |
+| % of rows with probability > 0.3 | 11.1% | 22.3% |
 
-- The story behind v2 is a plausible "boost recall" change: failures are up-weighted 2×
-  and the trees are cut to depth 2.
-- Ranking barely changes, so an offline AUC gate would have let it through.
-- What it breaks is calibration. Every probability is pushed upwards, so a dashboard that
-  alerts at a fixed threshold fires about twice as often.
+- **The idea:** someone tries to catch more failures by giving failures 2× weight, and
+  makes the trees shallower.
+- **AUC barely changes**, so a check that only looks at AUC would let it through.
+- **But every probability goes up.** A dashboard that alerts above a fixed threshold would
+  fire about twice as often.
 
-### Setup
+### How the test works
 
-Both revisions run on `2cpu-4gi` with one warm instance each, so the canary cannot be
-spotted by latency. `scripts/canary_watch.py` does the whole run:
+Both versions run on 2 vCPU with one instance each, so v2 can't be spotted by being
+slower. `scripts/canary_watch.py` does everything:
 
-1. Replays labelled rows from the held-out test split with 6 client threads (~70 req/s).
-2. Baseline: 180 s with 100% on v1.
-3. `adapter.set_traffic` switches to **90/10**.
-4. Every 10 s it checks the endpoint as a whole.
-5. On an alert it rolls back automatically: `set_traffic(v1=100)`.
+1. Sends real test rows (with known answers) from 6 threads, about 70 requests per second.
+2. **Baseline:** 3 minutes with 100% of traffic on v1, to learn what "normal" looks like.
+3. Moves traffic to **90% v1 / 10% v2**.
+4. Every 10 seconds, checks whether the whole endpoint looks different from normal.
+5. If it raises an alert, it moves traffic back to 100% v1 immediately.
 
-**The detector is blind to the version.**
-- It sees only the stream of predicted probabilities for the endpoint as a whole.
-- Test: z = (mean p over the last 120 s − baseline mean) / (baseline sd / √n).
-- Alert when z > 4 on two consecutive checks.
-- The same test run over the baseline never went above |z| = 0.86 (90/10 run) or 0.90
-  (50/50 run), so the threshold has a wide false-alarm margin.
-- The `x-model-version` header of every response is written to the request log **only as
+**The detector doesn't know which version answered each request.**
+- It only sees the predicted probabilities from the endpoint as a whole.
+- **The check:** is the average probability over the last 2 minutes clearly higher than
+  normal? It's measured as a z-score, and it alerts when z is above 4 twice in a row.
+- During the normal period, z never went above 0.86 (in the 90/10 run) or 0.90 (in the
+  50/50 run). So an alert at 4 is not going to go off by chance.
+- Every response also says which version answered (`x-model-version`). I save that **only as
   evidence**. The detection code never reads it.
 
-### What happened (90/10, run `run90`)
+### What happened at 90/10
 
-| UTC | Event | Source |
+| Time (UTC) | What happened | Where it's recorded |
 |---|---|---|
-| 05:14:48.4 | traffic v1=100 (baseline starts) | `events.jsonl` |
-| 05:18:12.5 | first response from v2 | request log |
-| 05:18:17.2 | `update-traffic` returned: v1=90, v2=10 | `events.jsonl`, platform-reported split |
-| 05:21:28.3 | **alert**: z = 4.04 then 4.63 | `run90-windows.csv` |
-| 05:21:31.4 | last response from v2 | request log |
-| 05:21:33.6 | `update-traffic` returned: v1=100 (reported by the platform) | `events.jsonl` |
+| 05:14:48.4 | 100% on v1, baseline starts | `events.jsonl` |
+| 05:18:12.5 | first answer from v2 | request log |
+| 05:18:17.2 | traffic change confirmed: v1 = 90%, v2 = 10% | `events.jsonl` |
+| 05:21:28.3 | **alert** (z = 4.04, then 4.63) | `run90-windows.csv` |
+| 05:21:31.4 | last answer from v2 | request log |
+| 05:21:33.6 | traffic back to v1 = 100%, confirmed by Cloud Run | `events.jsonl` |
 
-**Detection took 196 s** from the first v2 response (190 s from the moment the split
-command returned). **Rollback took 5.9 s** from the alert to a confirmed 100/0 split.
-There were no errors in 42,011 requests.
+- **It took 196 seconds to notice**, counting from v2's first answer (190 s from when the
+  traffic change was confirmed).
+- **Rolling back took 5.9 seconds**, from the alert until Cloud Run confirmed 100% on v1.
+- 0 errors out of 42,011 requests.
 
-### Evidence that traffic actually moved
+### Proof that traffic really moved
 
-Two sources that do not depend on each other:
+I have two separate sources:
 
-1. **Client side**, from the response header of every request
-   (`run90-versions-per-10s.csv`): v2's share is 0% during the baseline, 8–12% after the
-   split, 0.9% in the 10 s bucket that contains the rollback, then 0% until the end.
-2. **Platform side**, Cloud Monitoring `run.googleapis.com/request_count` per revision per
-   minute (`run90-platform-counts.csv`, from `scripts/traffic_evidence.py`):
+1. **From my side:** each answer says which version sent it
+   (`run90-versions-per-10s.csv`). v2's share was 0% before, 8–12% during the canary, 0.9%
+   in the 10 seconds when the rollback happened, then 0% after.
+2. **From Google's side:** Cloud Monitoring counts requests per revision per minute
+   (`run90-platform-counts.csv`, from `scripts/traffic_evidence.py`):
 
-| Minute ending (UTC) | v1 revision | v2 revision |
+| Minute ending (UTC) | v1 | v2 |
 |---|---:|---:|
 | 05:17:33 | 4,827 | 0 |
 | 05:18:33 | 4,795 | 0 |
@@ -275,65 +289,64 @@ Two sources that do not depend on each other:
 | 05:22:33 | 4,569 | 266 |
 | 05:23:33 | 4,832 | **0** |
 
-The platform aggregates by minute and shows the v2 traffic about one minute later than
-the client does. Both sources agree that v2 served nothing after the rollback.
+Google's numbers are per minute, so they show v2 about a minute later than mine. Both
+agree: after the rollback, v2 got nothing.
 
-Figure: `reports/lab3/canary/canary.png` plots v2's share and the detector's z against
-time for both runs.
+Chart of both runs: `reports/lab3/canary/canary.png`.
 
-**In hindsight** (version joined back in after the run, not available to the detector):
-mean p was 0.121 from v1 and 0.199 from v2. At a 10% share that shifts the endpoint's
-mean by ~0.008, which is what the detector picked up.
+**Checking afterwards** (matching each answer to its version, which the detector couldn't
+do): v1's average was 0.121 and v2's was 0.199. With v2 getting 10% of traffic, the overall
+average goes up by ~0.008. That small rise is what the detector caught.
 
-### Same thing at 50/50 (run `run50`)
+### Same test at 50/50
 
-- Detected **34 s** after the first v2 response (30 s after the split returned).
-- Rolled back 4.7 s later.
-- v2 served 1,571 requests in total, about the same as the 1,599 it served during the
+- Noticed **34 seconds** after v2's first answer (30 s after the traffic change).
+- Rolled back 4.7 seconds after that.
+- v2 answered 1,571 requests. That's almost the same as the 1,599 it answered in the
   3-minute 90/10 run.
 
 ### Write-up (five lines)
 
-1. **What revealed it:** the endpoint-wide **mean predicted probability**, a label-free
-   output metric. Rolling log loss against labels never moved outside its noise; it even
-   drifted *down*. At a 10% share the damage is diluted tenfold, and the label-based
-   metric would have needed on the order of 10⁵ requests.
-2. **How long:** **196 s** from the first request that v2 served (about 1,600 canary
-   requests, ~14,000 in total), then 5.9 s to a confirmed rollback.
+1. **What showed the problem:** the **average predicted probability** of the whole
+   endpoint. It needs no correct answers. Log loss (which needs correct answers) never
+   moved outside its normal noise, and even went down. At 10% traffic the damage is watered
+   down 10 times, and log loss would have needed around 100,000 requests to show it.
+2. **How long it took:** **196 seconds** from v2's first answer (about 1,600 requests to v2,
+   ~14,000 in total). Then 5.9 seconds to roll back.
 3. **What would make it faster:**
-   - Compare the canary to the stable version *per revision*, not the blended endpoint
-     mean. That would be ~10× the signal at 90/10.
-   - Use a sequential test (CUSUM) instead of a 120 s window that must fill up.
+   - Compare v2 directly with v1, instead of the whole endpoint mixed together. That's
+     about 10× more signal at 90/10.
+   - Use a test that adds up evidence as it goes (like CUSUM), instead of waiting for a
+     2-minute window to fill.
    - Send more traffic.
-   - Have a pre-agreed calibration check (mean p, alert rate) on every release.
-4. **At 50/50:** detection took **34 s instead of 196 s**. Each request carries 5× the
-   shift, so about 25× fewer requests are needed, capped by the 10 s check interval and
-   the two-check rule.
-5. **The catch:** v2 reached almost exactly as many users either way (~1,570–1,600
-   requests). 50/50 finds the problem faster but exposes half of all users while it does.
-   90/10 limits how many users are affected in any one minute and pays for it in
-   detection time.
+   - Agree on a probability check (average, alert rate) that every new release must pass.
+4. **At 50/50:** it took **34 seconds instead of 196**. Each request carries 5× more of the
+   change, so it needs about 25× fewer requests. The 10-second check interval and the
+   "twice in a row" rule keep it from being even faster.
+5. **The trade-off:** v2 answered about the same number of requests either way (~1,570–1,600).
+   50/50 finds the problem faster, but half of all users get the bad model while it does.
+   90/10 limits how many users are affected each minute, but takes longer to notice.
 
+---
 
 ## Cost per 1,000 predictions
 
-**Configuration:** `2cpu-4gi`, the one that meets the target, one always-warm instance,
-instance-based billing: **6.34 THB/h** ($0.19008/h, derivation above).
+**Setup:** 2 vCPU / 4 GB (the one that meets the target), one instance always on:
+**6.34 THB/hour**.
 
-**Throughput:** 92.7 req/s, measured at the stated concurrency of 10 inside the p95
-target. This is the lower of the two runs at concurrency 10; the capacity at saturation is
-~129 req/s.
+**Speed:** 92.7 requests/s, measured at 10 users while meeting the target. This is the
+slower of my two runs at 10 users. The absolute max is ~129.
 
-**Utilisation assumption (stated explicitly): 25%.** The endpoint is sized for the peak
-of ten dashboards. Average traffic is assumed to be a quarter of peak (busy shifts versus
-nights), and the instance is paid for 24 h regardless.
+**Utilisation assumption: 25%.** The machine is sized for the busiest time (10
+dashboards). On average I assume traffic is a quarter of that (busy shifts versus nights).
+But the machine is paid for 24 hours either way.
 
 ```
-predictions per hour at 25%  = 92.7 × 0.25 × 3600 = 83,430
-cost per 1,000               = 6.34 THB / 83.43   = 0.076 THB
+predictions per hour at 25% = 92.7 × 0.25 × 3600 = 83,430
+cost per 1,000             = 6.34 THB / 83.43   = 0.076 THB
 ```
 
-The utilisation is the fragile part (`src/costs.cost_per_1k_predictions`, same inputs):
+The utilisation guess matters a lot (computed with `src/costs.cost_per_1k_predictions`):
 
 | Utilisation | THB per 1,000 predictions |
 |---:|---:|
@@ -342,35 +355,32 @@ The utilisation is the fragile part (`src/costs.cost_per_1k_predictions`, same i
 | 80% | 0.024 |
 | 100% | 0.019 |
 
-The same endpoint costs 20× more per prediction at 5% utilisation than at 100%. The
-per-hour price does not change; only how much of it is wasted.
+At 5% it costs 20× more per prediction than at 100%. The price per hour is the same. The
+difference is how much of the paid time is wasted.
 
-**When batch inference is cheaper:**
-- The warm endpoint costs **152 THB/day** whatever it serves.
-- A Cloud Run job on the same 2 vCPU scoring `/predict/batch`-style chunks (1,472
-  predictions/s measured) costs about 0.0012 THB per 1,000 predictions, plus ~0.05 THB of
-  startup per run.
-- Those two only meet at **~127 million predictions a day (~1,470 req/s)**. That is 11×
-  more than this instance can serve (~11 million/day at saturation).
-- **At any volume this endpoint can actually carry, a daily batch is cheaper. The warm
-  endpoint is worth paying for only when a prediction is needed within seconds.**
+**When is batch cheaper than keeping the endpoint on?**
+- Keeping the endpoint on costs **152 THB a day**, even if nobody uses it.
+- A batch job on the same machine does 1,472 predictions/s (measured). That's about
+  0.0012 THB per 1,000 predictions, plus ~0.05 THB to start each run.
+- The two only cost the same at **~127 million predictions a day** (~1,470 per second).
+  That's 11× more than this one instance can even handle (~11 million a day at max).
+- **So at any volume this endpoint can handle, a daily batch job is cheaper. The endpoint
+  is only worth paying for when you need the answer right away.**
 
+---
 
 ## Teardown
 
-`make teardown` (LAB=3 by default now) deleted the Cloud Run service `itcs355-serve` and
-all of its revisions at ~06:08 UTC. After that:
-- `gcloud run services list` returns 0 services.
-- No Vertex endpoint was ever created.
+At ~06:08 UTC, `make teardown` (now defaults to Lab 3) deleted the Cloud Run service
+`itcs355-serve` and all its revisions. After that:
+- `gcloud run services list` shows 0 services.
+- I never created a Vertex endpoint.
 - `make cost-report` finds nothing tagged `lab=3`.
 
-The record is in `reports/lab3/teardown.txt`.
+Record: `reports/lab3/teardown.txt`.
 
-What is kept on purpose:
-- the image in Artifact Registry
-- `itcs355-6688143@2` in the model registry
-- the model file in the bucket
+**What I kept on purpose:** the image in Artifact Registry, `itcs355-6688143@2` in the
+model registry, and the model file in the bucket. These are only a few MB of storage, with
+no hourly charge.
 
-These are storage, not compute: a few MB with no hourly charge.
-
-**Still check the billing console by hand.**
+**I still need to check the billing page by hand.**
