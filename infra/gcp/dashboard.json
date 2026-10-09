@@ -1,0 +1,134 @@
+{
+  "displayName": "ITCS355 staging — prediction service and drift",
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "xPos": 0, "yPos": 0, "width": 4, "height": 4,
+        "widget": {
+          "title": "Request rate (req/s)",
+          "xyChart": {
+            "dataSets": [{
+              "plotType": "LINE",
+              "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\"",
+                "aggregation": {"alignmentPeriod": "60s", "perSeriesAligner": "ALIGN_RATE", "crossSeriesReducer": "REDUCE_SUM"}
+              }}
+            }]
+          }
+        }
+      },
+      {
+        "xPos": 4, "yPos": 0, "width": 4, "height": 4,
+        "widget": {
+          "title": "Error rate: 4xx (caller) and 5xx (mine), share of all requests",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE", "legendTemplate": "4xx",
+                "timeSeriesQuery": {"timeSeriesFilterRatio": {
+                  "numerator": {"filter": "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\" metric.label.\"response_code_class\"=\"4xx\"",
+                                "aggregation": {"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_RATE", "crossSeriesReducer": "REDUCE_SUM"}},
+                  "denominator": {"filter": "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\"",
+                                  "aggregation": {"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_RATE", "crossSeriesReducer": "REDUCE_SUM"}}
+                }}
+              },
+              {
+                "plotType": "LINE", "legendTemplate": "5xx",
+                "timeSeriesQuery": {"timeSeriesFilterRatio": {
+                  "numerator": {"filter": "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\" metric.label.\"response_code_class\"=\"5xx\"",
+                                "aggregation": {"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_RATE", "crossSeriesReducer": "REDUCE_SUM"}},
+                  "denominator": {"filter": "metric.type=\"run.googleapis.com/request_count\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\"",
+                                  "aggregation": {"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_RATE", "crossSeriesReducer": "REDUCE_SUM"}}
+                }}
+              }
+            ],
+            "yAxis": {"scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "xPos": 8, "yPos": 0, "width": 4, "height": 4,
+        "widget": {
+          "title": "Latency at the endpoint, p50 / p95 / p99 (ms)",
+          "xyChart": {
+            "dataSets": [
+              {"plotType": "LINE", "legendTemplate": "p50", "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"run.googleapis.com/request_latencies\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\"",
+                "aggregation": {"alignmentPeriod": "60s", "perSeriesAligner": "ALIGN_DELTA", "crossSeriesReducer": "REDUCE_PERCENTILE_50"}}}},
+              {"plotType": "LINE", "legendTemplate": "p95", "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"run.googleapis.com/request_latencies\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\"",
+                "aggregation": {"alignmentPeriod": "60s", "perSeriesAligner": "ALIGN_DELTA", "crossSeriesReducer": "REDUCE_PERCENTILE_95"}}}},
+              {"plotType": "LINE", "legendTemplate": "p99", "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"run.googleapis.com/request_latencies\" resource.type=\"cloud_run_revision\" resource.label.\"service_name\"=\"itcs355-staging\"",
+                "aggregation": {"alignmentPeriod": "60s", "perSeriesAligner": "ALIGN_DELTA", "crossSeriesReducer": "REDUCE_PERCENTILE_99"}}}}
+            ],
+            "thresholds": [{"value": 100, "label": "endpoint p95 SLO (100 ms)"}]
+          }
+        }
+      },
+      {
+        "xPos": 0, "yPos": 4, "width": 6, "height": 4,
+        "widget": {
+          "title": "Feature drift: PSI, last 30 min of inputs vs training data",
+          "xyChart": {
+            "dataSets": [{
+              "plotType": "LINE", "legendTemplate": "${metric.labels.feature}",
+              "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"custom.googleapis.com/itcs355/drift/psi\" resource.type=\"global\"",
+                "aggregation": {"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_MAX"}
+              }}
+            }],
+            "thresholds": [{"value": 0.05, "label": "alert (0.05)"}]
+          }
+        }
+      },
+      {
+        "xPos": 6, "yPos": 4, "width": 3, "height": 4,
+        "widget": {
+          "title": "temp_c, mean of the same window (training: 79.58)",
+          "xyChart": {
+            "dataSets": [{
+              "plotType": "LINE",
+              "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"custom.googleapis.com/itcs355/drift/mean\" resource.type=\"global\" metric.label.\"feature\"=\"temp_c\"",
+                "aggregation": {"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_MAX"}
+              }}
+            }]
+          }
+        }
+      },
+      {
+        "xPos": 9, "yPos": 4, "width": 3, "height": 4,
+        "widget": {
+          "title": "Drift detector: rows in each window (0 = not running)",
+          "xyChart": {
+            "dataSets": [{
+              "plotType": "STACKED_BAR",
+              "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"custom.googleapis.com/itcs355/drift/window_rows\" resource.type=\"global\"",
+                "aggregation": {"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_MAX"}
+              }}
+            }],
+            "thresholds": [{"value": 900, "label": "minimum to score"}]
+          }
+        }
+      },
+      {
+        "xPos": 0, "yPos": 8, "width": 12, "height": 3,
+        "widget": {
+          "title": "Model version in production (requests per second, by the version that answered)",
+          "xyChart": {
+            "dataSets": [{
+              "plotType": "STACKED_AREA", "legendTemplate": "v${metric.labels.model_version}",
+              "timeSeriesQuery": {"timeSeriesFilter": {
+                "filter": "metric.type=\"logging.googleapis.com/user/itcs355_requests_by_model_version\" resource.type=\"cloud_run_revision\" metric.label.\"service\"=\"itcs355-staging\"",
+                "aggregation": {"alignmentPeriod": "60s", "perSeriesAligner": "ALIGN_RATE", "crossSeriesReducer": "REDUCE_SUM", "groupByFields": ["metric.label.\"model_version\""]}
+              }}
+            }]
+          }
+        }
+      }
+    ]
+  }
+}
