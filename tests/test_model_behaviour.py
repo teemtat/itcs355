@@ -20,7 +20,14 @@ from sklearn.ensemble import RandomForestClassifier
 from src import config, data, seeds
 
 RAW = config.REPO_ROOT / "data" / "raw" / "sensors.csv"
-LATENCY_BUDGET_MS = 50.0  # TODO(Lab 4): set from YOUR p95 target in loadtest/k6.js
+# The p95 target in loadtest/k6.js is 200 ms at the client with 10 users. In Lab 3 that
+# came out at 179 ms on 2 vCPU: ~100 ms of network, and most of the rest waiting behind
+# other requests. Scoring one row cost 6.4 ms there, and the wait grows with it, so a model
+# that scores much slower cannot meet the target. One row takes ~4 ms here (laptop); 25 ms
+# is about six times that, enough headroom for a slower CI runner, and low enough to stop a
+# model that got several times bigger before it reaches the endpoint. A tripwire, not a
+# p95 forecast: the load test is still what proves the target.
+LATENCY_BUDGET_MS = 25.0
 
 
 @pytest.fixture(scope="module")
@@ -30,9 +37,12 @@ def fitted():
     seed = seeds.set_all()
     df = data.load_raw(RAW)
     train_df, _, test_df = data.split(df, seed=seed)
-    model = RandomForestClassifier(n_estimators=120, max_depth=8, min_samples_leaf=5,
+    # The production configuration, as src/train.py builds it: the model these tests
+    # describe should be the one that serves, not a cheaper stand-in.
+    model = RandomForestClassifier(n_estimators=200, max_depth=8, min_samples_leaf=5,
                                    random_state=seed, n_jobs=-1)
     model.fit(train_df[data.FEATURES], train_df[data.TARGET])
+    model.set_params(n_jobs=1)
     return model, test_df
 
 
@@ -71,6 +81,29 @@ def test_risk_increases_with_wear(fitted):
     rows = pd.DataFrame([{**base, "hours_since_service": h} for h in (100, 3000, 8500)])[data.FEATURES]
     proba = model.predict_proba(rows)[:, 1]
     assert proba[0] <= proba[-1], f"risk fell as wear rose: {proba}"
+
+
+def test_risk_rises_with_temperature(fitted):
+    """Directional: the same readings, 10 °C hotter, must look riskier on average. Across
+    six seeds the rise was +0.030 to +0.044, so +0.01 fails only if the model has stopped
+    using temperature, or learned it backwards."""
+    model, test_df = fitted
+    rows = test_df[data.FEATURES]
+    hotter = rows.assign(temp_c=rows["temp_c"] + 10)
+    rise = model.predict_proba(hotter)[:, 1].mean() - model.predict_proba(rows)[:, 1].mean()
+    assert rise > 0.01, f"10 °C hotter raised mean risk by only {rise:.4f}"
+
+
+def test_humidity_does_not_drive_risk(fitted):
+    """Invariance: ambient humidity has no part in how failures happen here. Moving every
+    row from 30% to 85% humidity changed mean risk by at most 0.017 across six seeds; past
+    0.03 (a quarter of the 0.12 base rate) the model is leaning on a feature that only
+    correlates by chance, and will break when the weather does."""
+    model, test_df = fitted
+    rows = test_df[data.FEATURES]
+    dry = model.predict_proba(rows.assign(ambient_humidity=30.0))[:, 1].mean()
+    wet = model.predict_proba(rows.assign(ambient_humidity=85.0))[:, 1].mean()
+    assert abs(wet - dry) < 0.03, f"humidity moved mean risk by {wet - dry:+.4f}"
 
 
 def test_prediction_latency_within_budget(fitted):
