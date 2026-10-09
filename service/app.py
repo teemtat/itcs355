@@ -117,10 +117,14 @@ async def add_request_context(request: Request, call_next):
     if score_ms is not None:
         timing += f", score;dur={score_ms:.2f}"
     response.headers["server-timing"] = timing
+    # Lab 4: the scored inputs ride on the same line. The drift detector reads its window
+    # of production inputs back from these logs, so a reading the schema rejected (422)
+    # never enters it; only what the model actually saw does.
     _log(logging.INFO, request_id=request_id, path=request.url.path,
          status=response.status_code, latency_ms=round(latency_ms, 2),
          score_ms=None if score_ms is None else round(score_ms, 2),
-         rows=getattr(request.state, "rows", None), model_version=str(STATE["version"]))
+         rows=getattr(request.state, "rows", None), model_version=str(STATE["version"]),
+         inputs=getattr(request.state, "inputs", None))
     return response
 
 
@@ -155,6 +159,7 @@ def _score(request: Request, rows: list[dict]) -> list[float]:
     scores = [float(p) for p in STATE["model"].predict_proba(frame)[:, 1]]
     request.state.score_ms = (time.perf_counter() - started) * 1000
     request.state.rows = len(rows)
+    request.state.inputs = rows
     return scores
 
 

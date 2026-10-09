@@ -18,6 +18,9 @@ WORKDIR /app
 COPY --chown=runner:runner service/ ./service/
 COPY --chown=runner:runner src/ ./src/
 COPY --chown=runner:runner cloudlayer/ ./cloudlayer/
+# Lab 4: the scheduled drift job runs this same image with a different command, so the
+# detector ships with exactly the code and pins the service was tested with.
+COPY --chown=runner:runner monitoring/ ./monitoring/
 USER runner
 
 EXPOSE 8080

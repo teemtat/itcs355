@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cloudlayer.factory import get_adapter
 from src import config
 
-EVENTS = Path("reports/lab3/events.jsonl")
+# SERVE_EVENTS lets Lab 4 keep its own log instead of appending to Lab 3's evidence.
+EVENTS = Path(os.environ.get("SERVE_EVENTS", "reports/lab3/events.jsonl"))
 IMAGE_FILE = Path("reports/lab3/serve-image.txt")
 
 # Three known payloads: a typical reading, a batch, and one the schema must reject.
@@ -68,6 +70,7 @@ def main() -> int:
     d.add_argument("--tag", default=None)
     d.add_argument("--min-instances", type=int, default=1)
     d.add_argument("--max-instances", type=int, default=1)
+    d.add_argument("--lab", type=int, default=3, help="the lab whose teardown removes it")
 
     sub.add_parser("smoke")
     t = sub.add_parser("traffic")
@@ -88,7 +91,8 @@ def main() -> int:
         started = _now()
         rev = adapter.deploy(ref, args.endpoint, args.instance, image=image,
                              traffic=not args.canary, tag=args.tag,
-                             min_instances=args.min_instances, max_instances=args.max_instances)
+                             min_instances=args.min_instances, max_instances=args.max_instances,
+                             lab=args.lab)
         print(rev)
         _event("deploy", started=started, endpoint=args.endpoint, revision=rev, model_ref=ref,
                instance=args.instance, image=image, canary=args.canary,

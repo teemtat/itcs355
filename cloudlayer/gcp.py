@@ -25,7 +25,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +37,9 @@ from cloudlayer.base import CloudAdapter
 # reads BLOB_URI through an ordinary filesystem path and the training image needs no
 # Google SDK at all. Nothing else in the repo may know this prefix.
 GCS_FUSE_ROOT = "/gcs"
+
+MONITORING_API = "https://monitoring.googleapis.com/v3"
+LOGGING_API = "https://logging.googleapis.com/v2/entries:list"
 
 TERMINAL_STATES = {
     "JOB_STATE_SUCCEEDED",
@@ -349,7 +352,7 @@ class GcpAdapter(CloudAdapter):
 
     def deploy(self, model_ref: str, endpoint: str, instance: str, *,
                image: str | None = None, traffic: bool = True, tag: str | None = None,
-               min_instances: int = 1, max_instances: int = 1) -> str:
+               min_instances: int = 1, max_instances: int = 1, lab: int = 3) -> str:
         """Deploy registry version `model_ref` ("name@version") as a new revision of the
         Cloud Run service `endpoint`. Returns the revision name.
 
@@ -359,6 +362,7 @@ class GcpAdapter(CloudAdapter):
         min/max       1/1 by default: one always-warm instance, so a load test measures
                       one instance's capacity rather than the autoscaler's, and p99 is
                       not a cold start. Scale-to-zero is measured separately (min 0).
+        lab           which lab's teardown deletes it. Lab 4's staging service is 4.
 
         Probes are where this platform's route difference lives: the startup probe hits
         /ready, so no traffic reaches a revision whose model has not loaded; liveness
@@ -376,7 +380,7 @@ class GcpAdapter(CloudAdapter):
             raise ValueError(f"deploy a digest-pinned image, got {image!r}")
 
         artifact = self._model_artifact(name, version)
-        labels = self.cfg.tags(3)
+        labels = self.cfg.tags(lab)
         env = {
             "CLOUD_PROVIDER": "gcp",
             "MODEL_URI": artifact,
@@ -422,7 +426,14 @@ class GcpAdapter(CloudAdapter):
     _token: tuple[float, str] | None = None
 
     def auth_header(self) -> dict[str, str]:
-        """The service is not public. An identity token for the caller, cached ~50 min."""
+        """The service is not public. An identity token for the caller, cached ~50 min.
+
+        In CI the caller is a federated identity, and `gcloud auth print-identity-token`
+        cannot mint a token for one. The workflow gets it from the auth step instead and
+        passes it in SERVICE_ID_TOKEN.
+        """
+        if os.environ.get("SERVICE_ID_TOKEN"):
+            return {"Authorization": f"Bearer {os.environ['SERVICE_ID_TOKEN']}"}
         now = time.time()
         if not self._token or now - self._token[0] > 3000:
             self._token = (now, _run(["gcloud", "auth", "print-identity-token"]).strip())
@@ -540,7 +551,21 @@ class GcpAdapter(CloudAdapter):
         and nothing points at it — the registry version it served stays registered.
         """
         acted: list[str] = []
-        for svc in self._serving_services(tags.get("lab", "")):
+        lab = tags.get("lab", "")
+        # Lab 4: the schedule goes first. A scheduler left behind keeps starting a job, and
+        # a job left behind keeps reading logs, long after anyone looks at the result.
+        for sched in self._schedules(lab):
+            _run(["gcloud", "scheduler", "jobs", "delete", sched,
+                  f"--location={self.cfg.region}", f"--project={self.cfg.project_id}", "--quiet"])
+            acted.append(f"deleted   Cloud Scheduler job {sched.rsplit('/', 1)[-1]}")
+        for job in self._run_jobs(lab):
+            _run(["gcloud", "run", "jobs", "delete", job,
+                  f"--region={self.cfg.region}", f"--project={self.cfg.project_id}", "--quiet"])
+            acted.append(f"deleted   Cloud Run job {job}")
+        for policy, title in self._alert_policies(lab):
+            self._api(f"{MONITORING_API}/{policy}", method="DELETE")
+            acted.append(f"deleted   alert policy {title!r}")
+        for svc in self._serving_services(lab):
             _run(["gcloud", "run", "services", "delete", svc,
                   f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
                   "--quiet"])
@@ -588,6 +613,100 @@ class GcpAdapter(CloudAdapter):
         if out.returncode != 0 or '"error"' in out.stdout:
             raise RuntimeError(f"delete {name} failed: {out.stdout or out.stderr}")
 
-    # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
+    # --- Lab 4 ---------------------------------------------------------------
+    #
+    # Both run inside the scheduled drift job on Cloud Run, which has no gcloud, so they
+    # talk to the REST APIs with a token from gcloud (laptop, CI) or the metadata server.
+
+    def _access_token(self) -> str:
+        if shutil.which("gcloud"):
+            return _run(["gcloud", "auth", "print-access-token"])
+        meta = urllib.request.Request(
+            "http://metadata.google.internal/computeMetadata/v1/instance/"
+            "service-accounts/default/token",
+            headers={"Metadata-Flavor": "Google"},
+        )
+        with urllib.request.urlopen(meta, timeout=10) as r:
+            return json.load(r)["access_token"]
+
+    def _api(self, url: str, body: dict[str, Any] | None = None,
+             method: str | None = None) -> dict[str, Any]:
+        req = urllib.request.Request(
+            url, data=None if body is None else json.dumps(body).encode(),
+            method=method or ("POST" if body is not None else "GET"),
+            headers={"Authorization": f"Bearer {self._access_token()}",
+                     "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                raw = r.read()
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"{req.method} {url} -> {e.code}: "
+                               f"{e.read().decode(errors='replace')[:500]}") from None
+        return json.loads(raw) if raw else {}
+
+    def emit_metric(self, name: str, value: float, unit: str = "None",
+                    labels: dict[str, str] | None = None) -> None:
+        """One point of custom.googleapis.com/itcs355/<name, dots as slashes> on the
+        `global` resource. The first write creates the descriptor (GAUGE, DOUBLE, with
+        whatever label keys it carried), so `unit` is not recorded; the dashboard says it.
+        """
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        series = {
+            "metric": {"type": f"custom.googleapis.com/itcs355/{name.replace('.', '/')}",
+                       "labels": {k: str(v) for k, v in (labels or {}).items()}},
+            "resource": {"type": "global", "labels": {"project_id": self.cfg.project_id}},
+            "points": [{"interval": {"endTime": now}, "value": {"doubleValue": float(value)}}],
+        }
+        self._api(f"{MONITORING_API}/projects/{self.cfg.project_id}/timeSeries",
+                  {"timeSeries": [series]})
+
+    def recent_inputs(self, endpoint: str, minutes: int) -> list[dict[str, Any]]:
+        """Rows the Cloud Run service scored in the last `minutes`, from its request logs.
+
+        service/app.py writes the scored rows into each request's log line, and Cloud
+        Logging parses that line into jsonPayload.msg. Only status 200 with rows counted:
+        a 422 never reached the model, so it is not part of what the model saw.
+        """
+        since = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat(
+            timespec="seconds").replace("+00:00", "Z")
+        body: dict[str, Any] = {
+            "resourceNames": [f"projects/{self.cfg.project_id}"],
+            "filter": ('resource.type="cloud_run_revision" '
+                       f'AND resource.labels.service_name="{endpoint}" '
+                       'AND jsonPayload.msg.status=200 AND jsonPayload.msg.rows>=1 '
+                       f'AND timestamp>="{since}"'),
+            "orderBy": "timestamp asc",
+            "pageSize": 1000,
+        }
+        rows: list[dict[str, Any]] = []
+        while True:
+            page = self._api(LOGGING_API, body)
+            for entry in page.get("entries", []):
+                rows.extend(entry.get("jsonPayload", {}).get("msg", {}).get("inputs") or [])
+            if not page.get("nextPageToken"):
+                return rows
+            body["pageToken"] = page["nextPageToken"]
+
+    def _schedules(self, lab: str) -> list[str]:
+        """Cloud Scheduler jobs carry no labels, so Lab 4 names them itcs355-lab<N>-*."""
+        names = _run([
+            "gcloud", "scheduler", "jobs", "list",
+            f"--location={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(name)", "--quiet",
+        ]).split()
+        return [n for n in names if n.rsplit("/", 1)[-1].startswith(f"itcs355-lab{lab}-")]
+
+    def _run_jobs(self, lab: str) -> list[str]:
+        return _run([
+            "gcloud", "run", "jobs", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--filter=metadata.labels.lab={lab}", "--format=value(metadata.name)", "--quiet",
+        ]).split()
+
+    def _alert_policies(self, lab: str) -> list[tuple[str, str]]:
+        q = urllib.parse.urlencode({"filter": f'user_labels.lab="{lab}"'})
+        found = self._api(f"{MONITORING_API}/projects/{self.cfg.project_id}/alertPolicies?{q}")
+        return [(p["name"], p.get("displayName", "")) for p in found.get("alertPolicies", [])]
+
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
-    # teardown                          -> Lab 5 (filter resources by label)
