@@ -1,0 +1,11 @@
+2026-10-09T13:10:11+00:00  6000 rows
+feature                      psi        ks   ref mean   cur mean  verdict
+temp_c                   0.01097   0.03733     79.580     80.105  stable
+vibration_mm_s           0.01020   0.03733      4.587      4.490  stable
+ambient_humidity         0.00848   0.02650     58.145     57.577  stable
+pressure_kpa             0.00708   0.01617    318.185    318.146  stable
+load_pct                 0.00621   0.02400     63.772     63.822  stable
+hours_since_service      0.00556   0.02250   4555.530   4539.562  stable
+{"event": "drift_check", "checked_at": "2026-10-09T13:10:11+00:00", "rows": 6000, "psi": {"temp_c": 0.01097, "vibration_mm_s": 0.0102, "ambient_humidity": 0.00848, "pressure_kpa": 0.00708, "load_pct": 0.00621, "hours_since_service": 0.00556}}
+
+OK  no feature at or above threshold 0.05

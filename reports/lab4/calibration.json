@@ -1,0 +1,151 @@
+{
+  "window_rows": 1800,
+  "noise": {
+    "300": {
+      "windows": 500,
+      "max_over_features": {
+        "p50": 0.0474,
+        "p99": 0.0781,
+        "max": 0.1078
+      },
+      "temp_c_p99": 0.0687
+    },
+    "900": {
+      "windows": 500,
+      "max_over_features": {
+        "p50": 0.0175,
+        "p99": 0.036,
+        "max": 0.0384
+      },
+      "temp_c_p99": 0.0274
+    },
+    "1800": {
+      "windows": 500,
+      "max_over_features": {
+        "p50": 0.01,
+        "p99": 0.0187,
+        "max": 0.0229
+      },
+      "temp_c_p99": 0.0157
+    },
+    "3600": {
+      "windows": 500,
+      "max_over_features": {
+        "p50": 0.0061,
+        "p99": 0.0108,
+        "max": 0.0127
+      },
+      "temp_c_p99": 0.0096
+    }
+  },
+  "effect": [
+    {
+      "shift_c": 0,
+      "psi_median": 0.004,
+      "mean_probability": 0.1172,
+      "flagged_share": 0.1013
+    },
+    {
+      "shift_c": 1,
+      "psi_median": 0.0154,
+      "mean_probability": 0.1198,
+      "flagged_share": 0.1043
+    },
+    {
+      "shift_c": 2,
+      "psi_median": 0.0523,
+      "mean_probability": 0.1225,
+      "flagged_share": 0.1067
+    },
+    {
+      "shift_c": 3,
+      "psi_median": 0.1022,
+      "mean_probability": 0.1254,
+      "flagged_share": 0.1107
+    },
+    {
+      "shift_c": 4,
+      "psi_median": 0.1793,
+      "mean_probability": 0.1284,
+      "flagged_share": 0.1152
+    },
+    {
+      "shift_c": 6,
+      "psi_median": 0.3866,
+      "mean_probability": 0.1346,
+      "flagged_share": 0.1217
+    }
+  ],
+  "detection_shift_6": [
+    {
+      "drifted_fraction": 0,
+      "psi_median": 0.0041
+    },
+    {
+      "drifted_fraction": 0.1,
+      "psi_median": 0.0078
+    },
+    {
+      "drifted_fraction": 0.2,
+      "psi_median": 0.0187
+    },
+    {
+      "drifted_fraction": 0.3,
+      "psi_median": 0.0401
+    },
+    {
+      "drifted_fraction": 0.4,
+      "psi_median": 0.0617
+    },
+    {
+      "drifted_fraction": 0.5,
+      "psi_median": 0.0912
+    },
+    {
+      "drifted_fraction": 0.7,
+      "psi_median": 0.159
+    },
+    {
+      "drifted_fraction": 1.0,
+      "psi_median": 0.3581
+    }
+  ],
+  "modes": [
+    {
+      "mode": "none",
+      "temp_mean": 79.49,
+      "temp_psi": 0.0035,
+      "temp_ks": 0.0158,
+      "worst_feature": "temp_c",
+      "worst_psi": 0.0035,
+      "temp_psi_one_window": 0.0022
+    },
+    {
+      "mode": "shift",
+      "temp_mean": 85.49,
+      "temp_psi": 0.3869,
+      "temp_ks": 0.2575,
+      "worst_feature": "temp_c",
+      "worst_psi": 0.3869,
+      "temp_psi_one_window": 0.3934
+    },
+    {
+      "mode": "scale",
+      "temp_mean": 79.49,
+      "temp_psi": 0.1828,
+      "temp_ks": 0.1115,
+      "worst_feature": "temp_c",
+      "worst_psi": 0.1828,
+      "temp_psi_one_window": 0.1682
+    },
+    {
+      "mode": "mix",
+      "temp_mean": 80.05,
+      "temp_psi": 0.0139,
+      "temp_ks": 0.0463,
+      "worst_feature": "temp_c",
+      "worst_psi": 0.0139,
+      "temp_psi_one_window": 0.0198
+    }
+  ]
+}
