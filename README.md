@@ -1,4 +1,4 @@
-# ITCS355 — Reproducible Training (Lab 1), Tracking & Registry (Lab 2), Serving (Lab 3)
+# ITCS355 — Reproducible Training (Lab 1), Tracking & Registry (Lab 2), Serving (Lab 3), CI/CD & Monitoring (Lab 4)
 
 > **Course materials live in [`course/`](course/README.md)** — syllabus, slides, the faculty
 > specification, all five lab handouts, and the project brief. Every document is Markdown and
@@ -255,6 +255,93 @@ version number. Both are fixed in `cloudlayer/gcp.py`.
 
 ---
 
+## Lab 4 — how to run it
+
+CI and CD run by themselves: open a pull request and CI runs; merge to main and the
+tested image is pushed and deployed to `itcs355-staging`. One-time setup and the rest:
+
+```bash
+bash infra/gcp/github-oidc.sh teemtat/itcs355          # OIDC identity, once
+make test                                              # unit, contract, behaviour, service
+make calibrate                                         # the numbers behind the drift threshold
+make drift-modes                                       # shift / scale / mix against the detector
+bash infra/gcp/lab4-monitoring.sh <image@sha256:…> <email>   # drift job, schedule, alert, dashboard
+make replay                                            # 40 min normal, then 30 min at +6 °C
+make teardown LAB=4 && make cost-report LAB=4
+```
+
+Results and my write-up: [`reports/lab4-cicd-drift.md`](reports/lab4-cicd-drift.md).
+Post-mortem: [`reports/lab4-postmortem.md`](reports/lab4-postmortem.md).
+
+---
+
+## Data contract tests — the incident each one catches
+
+| Test | Would have caught |
+|---|---|
+| schema and types | a release drops `ambient_humidity`, or sends `machine_id` as `"M-017"` |
+| no nulls | a vibration sensor offline, the gateway sending empty values |
+| plausible ranges | firmware switching to Fahrenheit. **This blocked my bad commit** |
+| medians in expected units | pressure in bar, load as 0–1. Inside every range, so only this sees it |
+| target binary, not degenerate | a broken label join, every row "did not fail" |
+| unique reading id | a retried ingestion loading the same batch twice |
+| no machine across splits (Lab 1) | machine ids reused after a fleet change |
+
+---
+
+## Drift threshold: 0.05, and why
+
+I measured it instead of copying 0.10 / 0.25 from credit scoring:
+- **Noise:** with 30 minutes of normal readings (~1,800), PSI never went above 0.023
+  (500 windows, worst of 6 features).
+- **Twice the noise:** 0.05 is twice that, and matches a ~+2 °C temperature offset,
+  about a normal thermocouple's tolerance.
+- **What 0.25 would miss:** a +4 °C fault (PSI 0.18) would never alert, while the model
+  flagged 14% more readings than it should.
+- **Too little data:** windows under 900 readings are skipped, because their noise
+  alone reaches 0.04–0.11.
+
+**Live:** 40 minutes of normal traffic, highest PSI 0.014, no false alarm. Then +6 °C:
+the alert email came **17 minutes** after injection (14 min 16 s to the detector's
+check). I had predicted 12–19 minutes and committed that before injecting.
+
+**Which statistic catches what:** a spread change (×1.5) leaves the mean exactly where
+it was but PSI reads 0.20. That is why I alert on PSI, not on the mean. A change in
+which machines report (`mix`) is not caught by any per-feature threshold. That gap is
+real and written up.
+
+---
+
+## Lab 4 — what happened
+
+**Blocked commit:** [PR #2](https://github.com/teemtat/itcs355/pull/2) sends temperature
+in Fahrenheit. CI failed at the **Data contract tests** step, 49 seconds after the push:
+`test_features_within_plausible_ranges` (temp_c 240.215 > 140) and
+`test_feature_medians_in_expected_units` (median 174.1, not 60–100). The build job never
+ran. Closed without merging. Run: https://github.com/teemtat/itcs355/actions/runs/38023737410
+
+**CD:** commit to tested staging in 6 min 41 s. The image is deployed by the digest CI
+pushed, found by its commit SHA, so what runs is exactly what was tested. Deploy and
+smoke test worked on the first run.
+
+**Secrets:** none stored. GitHub's OIDC token is exchanged for a deployer service
+account, and only for this repo's main branch, so a pull request can't get cloud
+credentials at all.
+
+**Post-mortem, short version:** every reading jumped exactly +6 °C on all machines at
+once, with nothing else changing. That is a broken sensor feed, not hotter machines.
+- **Don't retrain:** the model would learn 85 °C as normal and miss failures once the
+  sensor is fixed.
+- **Rollback doesn't help:** v1 is what was serving.
+- **What to do:** fix the feed and keep the bad window out of the next training run.
+- **A week unnoticed:** ~14 extra inspections, ~10 of them needless (~14,000 THB),
+  plus 600k wrong readings waiting for the next retrain.
+
+**Teardown:** see `reports/lab4/teardown.txt`. Schedule first, then the job, the alert
+policy and the staging service.
+
+---
+
 ## Notes
 
 - `make reproduce` only needs Docker — it builds the data and trains inside the container, so it
@@ -265,6 +352,9 @@ version number. Both are fixed in `cloudlayer/gcp.py`.
   SUCCEEDED ones, because a registered version's `training_job_id` points at one;
   `make teardown PURGE=True` removes those too.
 - Since Lab 3, `make teardown` defaults to `LAB=3` and also deletes the Cloud Run service.
-  For Lab 2 resources use `make teardown LAB=2`.
+  For Lab 2 resources use `make teardown LAB=2`. `make teardown LAB=4` also deletes the
+  Cloud Scheduler job first, then the drift job and the alert policy.
+- Lab 4 CI skips commits that only change `*.md` or `reports/`, so a write-up change
+  never redeploys staging.
 - The serving image does not include MLflow. The deployed service never uses it, and leaving
   it out keeps the image small, which shortens cold starts.
