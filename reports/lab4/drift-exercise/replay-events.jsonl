@@ -1,0 +1,3 @@
+{"at": "2026-10-10T04:30:59.170+00:00", "event": "start", "endpoint": "itcs355-staging", "url": "https://itcs355-staging-kqg2dtnvba-as.a.run.app", "rate": 1.0, "normal_min": 40.0, "drifted_min": 30.0, "normal": "data/stream/normal.csv", "drifted": "data/stream/drifted.csv"}
+{"at": "2026-10-10T05:10:59.173+00:00", "event": "inject", "detail": "switched to data/stream/drifted.csv", "after_requests": 2400}
+{"at": "2026-10-10T05:40:59.204+00:00", "event": "end", "sent": {"normal": 2400, "drifted": 1800}}

@@ -1,0 +1,8 @@
+2026-10-10T04:25:49.8835486Z deploying asia-southeast1-docker.pkg.dev/itcs355-6688143/itcs355/itcs355-serve@sha256:847ed92970b7c511ec6d45b2ba82e737c1e254d95762e8cc33922fd434655d61 (commit 102d3e750a85957b26e3d5967ba8a6199c90f3de)
+2026-10-10T04:26:40.3028899Z itcs355-staging-v1-1cpu-042553
+2026-10-10T04:26:42.0547235Z   id_token_audience: https://itcs355-staging-kqg2dtnvba-as.a.run.app
+2026-10-10T04:26:42.0558247Z   url: https://itcs355-staging-kqg2dtnvba-as.a.run.app
+2026-10-10T04:26:42.5007222Z   url: https://itcs355-staging-kqg2dtnvba-as.a.run.app
+2026-10-10T04:26:45.3668915Z PASS  single        200  version=1  350 ms  {"probability": 0.026792116476468123, "model_version": "1"}
+2026-10-10T04:26:45.3669575Z PASS  batch         200  version=1  388 ms  {"probabilities": [0.0141349095791086, 0.6086789761413316], "model_version": "1"}
+2026-10-10T04:26:45.3670225Z PASS  out-of-range  422  version=1  377 ms  {"detail": [{"type": "less_than_equal", "loc": ["body", "load_pct"], "msg": "Input should be less than or equa

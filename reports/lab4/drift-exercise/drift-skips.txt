@@ -1,0 +1,5 @@
+2026-10-10T04:30:21+00:00  SKIP  3 rows in the window, need 900. Too few to tell drift from noise; no scores written.
+2026-10-10T04:30:23+00:00  SKIP  3 rows in the window, need 900. Too few to tell drift from noise; no scores written.
+2026-10-10T04:35:15+00:00  SKIP  248 rows in the window, need 900. Too few to tell drift from noise; no scores written.
+2026-10-10T04:40:15+00:00  SKIP  546 rows in the window, need 900. Too few to tell drift from noise; no scores written.
+2026-10-10T04:45:14+00:00  SKIP  844 rows in the window, need 900. Too few to tell drift from noise; no scores written.

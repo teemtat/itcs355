@@ -1,0 +1,17 @@
+{"at": "2026-10-10T04:30:59.170+00:00", "event": "start", "endpoint": "itcs355-staging", "url": "https://itcs355-staging-kqg2dtnvba-as.a.run.app", "rate": 1.0, "normal_min": 40.0, "drifted_min": 30.0, "normal": "data/stream/normal.csv", "drifted": "data/stream/drifted.csv"}
+2026-10-10T04:35:58.301+00:00  normal: 300 sent
+2026-10-10T04:40:58.405+00:00  normal: 600 sent
+2026-10-10T04:45:58.342+00:00  normal: 900 sent
+2026-10-10T04:50:58.308+00:00  normal: 1200 sent
+2026-10-10T04:55:58.291+00:00  normal: 1500 sent
+2026-10-10T05:00:58.297+00:00  normal: 1800 sent
+2026-10-10T05:05:58.294+00:00  normal: 2100 sent
+2026-10-10T05:10:58.326+00:00  normal: 2400 sent
+{"at": "2026-10-10T05:10:59.173+00:00", "event": "inject", "detail": "switched to data/stream/drifted.csv", "after_requests": 2400}
+2026-10-10T05:15:58.312+00:00  drifted: 300 sent
+2026-10-10T05:20:58.407+00:00  drifted: 600 sent
+2026-10-10T05:25:58.323+00:00  drifted: 900 sent
+2026-10-10T05:30:58.325+00:00  drifted: 1200 sent
+2026-10-10T05:35:58.315+00:00  drifted: 1500 sent
+2026-10-10T05:40:58.353+00:00  drifted: 1800 sent
+{"at": "2026-10-10T05:40:59.204+00:00", "event": "end", "sent": {"normal": 2400, "drifted": 1800}}

@@ -1,0 +1,69 @@
+test	Data contract tests	﻿2026-10-10T04:21:36.0787367Z ##[group]Run pytest -q -m contract tests/test_data.py
+test	Data contract tests	2026-10-10T04:21:36.0788010Z ^[[36;1mpytest -q -m contract tests/test_data.py^[[0m
+test	Data contract tests	2026-10-10T04:21:36.0851465Z shell: /usr/bin/bash -e {0}
+test	Data contract tests	2026-10-10T04:21:36.0851715Z env:
+test	Data contract tests	2026-10-10T04:21:36.0851915Z   CLOUD_PROVIDER: gcp
+test	Data contract tests	2026-10-10T04:21:36.0852152Z   PROJECT_ID: itcs355-6688143
+test	Data contract tests	2026-10-10T04:21:36.0852401Z   REGION: asia-southeast1
+test	Data contract tests	2026-10-10T04:21:36.0852653Z   BLOB_URI: gs://itcs355-6688143/itcs355
+test	Data contract tests	2026-10-10T04:21:36.0853063Z   CONTAINER_REGISTRY: asia-southeast1-docker.pkg.dev/itcs355-6688143/itcs355
+test	Data contract tests	2026-10-10T04:21:36.0853470Z   MODEL_REGISTRY_NAME: itcs355-6688143
+test	Data contract tests	2026-10-10T04:21:36.0853748Z   MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+test	Data contract tests	2026-10-10T04:21:36.0854020Z   IDENTITY_REF: github-oidc
+test	Data contract tests	2026-10-10T04:21:36.0854314Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+test	Data contract tests	2026-10-10T04:21:36.0854764Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+test	Data contract tests	2026-10-10T04:21:36.0855196Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+test	Data contract tests	2026-10-10T04:21:36.0855612Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+test	Data contract tests	2026-10-10T04:21:36.0855985Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+test	Data contract tests	2026-10-10T04:21:36.0856363Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+test	Data contract tests	2026-10-10T04:21:36.0856692Z ##[endgroup]
+test	Data contract tests	2026-10-10T04:21:36.7347262Z ..F..F.                                                                  [100%]
+test	Data contract tests	2026-10-10T04:21:36.7348466Z =================================== FAILURES ===================================
+test	Data contract tests	2026-10-10T04:21:36.7349308Z ____________________ test_features_within_plausible_ranges _____________________
+test	Data contract tests	2026-10-10T04:21:36.7349919Z 
+test	Data contract tests	2026-10-10T04:21:36.7350279Z df =       reading_id  machine_id  ...  ambient_humidity  failed_within_7d
+test	Data contract tests	2026-10-10T04:21:36.7351125Z 0              0           0  ...            63....65.351                 1
+test	Data contract tests	2026-10-10T04:21:36.7351825Z 5999        5999         239  ...            55.347                 1
+test	Data contract tests	2026-10-10T04:21:36.7352332Z 
+test	Data contract tests	2026-10-10T04:21:36.7352525Z [6000 rows x 9 columns]
+test	Data contract tests	2026-10-10T04:21:36.7352834Z 
+test	Data contract tests	2026-10-10T04:21:36.7353084Z     @pytest.mark.contract
+test	Data contract tests	2026-10-10T04:21:36.7353668Z     def test_features_within_plausible_ranges(df):
+test	Data contract tests	2026-10-10T04:21:36.7354434Z         for col, (lo, hi) in data.PLAUSIBLE_RANGES.items():
+test	Data contract tests	2026-10-10T04:21:36.7355361Z             assert df[col].min() >= lo, f"{col} below plausible floor: {df[col].min()}"
+test	Data contract tests	2026-10-10T04:21:36.7356427Z >           assert df[col].max() <= hi, f"{col} above plausible ceiling: {df[col].max()}"
+test	Data contract tests	2026-10-10T04:21:36.7357329Z E           AssertionError: temp_c above plausible ceiling: 240.215
+test	Data contract tests	2026-10-10T04:21:36.7358388Z E           assert np.float64(240.215) <= 140.0
+test	Data contract tests	2026-10-10T04:21:36.7359047Z E            +  where np.float64(240.215) = max()
+test	Data contract tests	2026-10-10T04:21:36.7360809Z E            +    where max = 0       180.460\n1       209.053\n2       202.125\n3       187.472\n4       193.931\n         ...   \n5995    224.254\n5996    231.332\n5997    204.637\n5998    220.783\n5999    231.396\nName: temp_c, Length: 6000, dtype: float64.max
+test	Data contract tests	2026-10-10T04:21:36.7362240Z 
+test	Data contract tests	2026-10-10T04:21:36.7362453Z tests/test_data.py:58: AssertionError
+test	Data contract tests	2026-10-10T04:21:36.7363140Z ____________________ test_feature_medians_in_expected_units ____________________
+test	Data contract tests	2026-10-10T04:21:36.7363573Z 
+test	Data contract tests	2026-10-10T04:21:36.7363791Z df =       reading_id  machine_id  ...  ambient_humidity  failed_within_7d
+test	Data contract tests	2026-10-10T04:21:36.7364275Z 0              0           0  ...            63....65.351                 1
+test	Data contract tests	2026-10-10T04:21:36.7364713Z 5999        5999         239  ...            55.347                 1
+test	Data contract tests	2026-10-10T04:21:36.7365005Z 
+test	Data contract tests	2026-10-10T04:21:36.7365110Z [6000 rows x 9 columns]
+test	Data contract tests	2026-10-10T04:21:36.7365270Z 
+test	Data contract tests	2026-10-10T04:21:36.7365386Z     @pytest.mark.contract
+test	Data contract tests	2026-10-10T04:21:36.7365709Z     def test_feature_medians_in_expected_units(df):
+test	Data contract tests	2026-10-10T04:21:36.7366750Z         """Catches a unit change that every range check lets through: bar for kPa, a 0–1
+test	Data contract tests	2026-10-10T04:21:36.7367221Z         fraction for a percentage, days for hours."""
+test	Data contract tests	2026-10-10T04:21:36.7367986Z         for col, (lo, hi) in data.TYPICAL_MEDIANS.items():
+test	Data contract tests	2026-10-10T04:21:36.7368322Z             median = df[col].median()
+test	Data contract tests	2026-10-10T04:21:36.7368589Z >           assert lo <= median <= hi, (
+test	Data contract tests	2026-10-10T04:21:36.7369094Z                 f"{col} median {median:.3f} outside [{lo}, {hi}] — did the producer change units?")
+test	Data contract tests	2026-10-10T04:21:36.7369794Z E           AssertionError: temp_c median 174.055 outside [60.0, 100.0] — did the producer change units?
+test	Data contract tests	2026-10-10T04:21:36.7370267Z E           assert np.float64(174.0555) <= 100.0
+test	Data contract tests	2026-10-10T04:21:36.7370459Z 
+test	Data contract tests	2026-10-10T04:21:36.7370569Z tests/test_data.py:80: AssertionError
+test	Data contract tests	2026-10-10T04:21:36.7370888Z =========================== short test summary info ============================
+test	Data contract tests	2026-10-10T04:21:36.7371625Z FAILED tests/test_data.py::test_features_within_plausible_ranges - AssertionError: temp_c above plausible ceiling: 240.215
+test	Data contract tests	2026-10-10T04:21:36.7372193Z assert np.float64(240.215) <= 140.0
+test	Data contract tests	2026-10-10T04:21:36.7372468Z  +  where np.float64(240.215) = max()
+test	Data contract tests	2026-10-10T04:21:36.7373213Z  +    where max = 0       180.460\n1       209.053\n2       202.125\n3       187.472\n4       193.931\n         ...   \n5995    224.254\n5996    231.332\n5997    204.637\n5998    220.783\n5999    231.396\nName: temp_c, Length: 6000, dtype: float64.max
+test	Data contract tests	2026-10-10T04:21:36.7375048Z FAILED tests/test_data.py::test_feature_medians_in_expected_units - AssertionError: temp_c median 174.055 outside [60.0, 100.0] — did the producer change units?
+test	Data contract tests	2026-10-10T04:21:36.7376290Z assert np.float64(174.0555) <= 100.0
+test	Data contract tests	2026-10-10T04:21:36.7376894Z 2 failed, 5 passed, 6 deselected in 0.41s
+test	Data contract tests	2026-10-10T04:21:36.7945798Z ##[error]Process completed with exit code 1.
