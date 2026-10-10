@@ -39,7 +39,8 @@ def _reading(rng: np.random.Generator, base_temp: float, wear: float, duty: floa
     )
     p = 1.0 / (1.0 + np.exp(-logit))
     return {
-        "temp_c": round(float(temp), 3),
+        # Upstream change: the new sensor gateway reports Fahrenheit, column name unchanged.
+        "temp_c": round(float(temp) * 9 / 5 + 32, 3),
         "vibration_mm_s": round(float(vib), 3),
         "pressure_kpa": round(float(pressure), 3),
         "hours_since_service": round(hours, 3),
