@@ -11,6 +11,10 @@ test_no_machine_leaks_across_splits is the one that matters most. It is the sing
 most common silent error in student projects: readings from one machine appearing in
 both train and validation, producing a score that never survives contact with
 production.
+
+Lab 4: contract tests carry @pytest.mark.contract, so CI runs them as their own step
+(`pytest -m contract`) and a bad upstream change fails under that name. The README says
+which production incident each one would have caught.
 """
 from __future__ import annotations
 
@@ -30,6 +34,7 @@ def df():
 
 # --- contract tests: about the data -------------------------------------------------
 
+@pytest.mark.contract
 def test_schema_columns_present_and_typed(df):
     missing = set(data.SCHEMA) - set(df.columns)
     assert not missing, f"missing columns: {sorted(missing)}"
@@ -39,18 +44,21 @@ def test_schema_columns_present_and_typed(df):
         assert str(df[col].dtype) == expected, f"{col}: expected {expected}, got {df[col].dtype}"
 
 
+@pytest.mark.contract
 def test_no_nulls_in_required_columns(df):
     nulls = df[list(data.SCHEMA)].isna().sum()
     offenders = nulls[nulls > 0]
     assert offenders.empty, f"null values found: {offenders.to_dict()}"
 
 
+@pytest.mark.contract
 def test_features_within_plausible_ranges(df):
     for col, (lo, hi) in data.PLAUSIBLE_RANGES.items():
         assert df[col].min() >= lo, f"{col} below plausible floor: {df[col].min()}"
         assert df[col].max() <= hi, f"{col} above plausible ceiling: {df[col].max()}"
 
 
+@pytest.mark.contract
 def test_target_is_binary_and_not_degenerate(df):
     values = set(df[data.TARGET].unique().tolist())
     assert values <= {0, 1}, f"target has values outside 0/1: {values}"
@@ -58,12 +66,26 @@ def test_target_is_binary_and_not_degenerate(df):
     assert 0.01 < rate < 0.99, f"target is degenerate, positive rate = {rate:.4f}"
 
 
+@pytest.mark.contract
 def test_identifier_is_unique(df):
     assert df[data.ID].is_unique, "reading_id is not unique"
 
 
+@pytest.mark.contract
+def test_feature_medians_in_expected_units(df):
+    """Catches a unit change that every range check lets through: bar for kPa, a 0–1
+    fraction for a percentage, days for hours."""
+    for col, (lo, hi) in data.TYPICAL_MEDIANS.items():
+        median = df[col].median()
+        assert lo <= median <= hi, (
+            f"{col} median {median:.3f} outside [{lo}, {hi}] — did the producer change units?")
+
+
 # --- property tests: about the splitting logic --------------------------------------
 
+# Also run with the contracts: Lab 1's leakage test is part of what the data must keep
+# satisfying, since a producer that reuses machine ids would break it without a code change.
+@pytest.mark.contract
 def test_no_machine_leaks_across_splits(df):
     train, val, test = data.split(df, seed=42)
     tr, va, te = (set(p[data.GROUP]) for p in (train, val, test))
@@ -102,3 +124,13 @@ def test_data_fingerprint_is_stable():
     if not RAW.exists():
         pytest.skip("no raw data")
     assert data.data_fingerprint(RAW) == data.data_fingerprint(RAW)
+
+
+def test_service_bounds_match_the_data_contract():
+    """service/schemas.py repeats PLAUSIBLE_RANGES as pydantic bounds. If they drift apart,
+    the API accepts values CI would reject in training data, or refuses valid ones."""
+    from service.schemas import PredictRequest
+
+    for col, (lo, hi) in data.PLAUSIBLE_RANGES.items():
+        meta = {type(m).__name__: m for m in PredictRequest.model_fields[col].metadata}
+        assert meta["Ge"].ge == lo and meta["Le"].le == hi, f"{col}: API bounds differ from the contract"

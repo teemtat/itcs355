@@ -49,25 +49,32 @@ have caught.
 GitHub Actions, triggered on pull request and on push to main.
 
 ```
-lint → unit tests → data contract tests → model behaviour tests
+secret scan → lint → unit tests → data contract tests → model behaviour tests
      → build image → integration test → push image (main only)
      → deploy to staging (main only)
 ```
 
 ```mermaid
 flowchart LR
-    PR["pull request"] --> L["lint"] --> U["unit"] --> DC["data contract"] --> MB["model behaviour"]
+    PR["pull request"] --> SS["secret scan<br>full history"] --> L["lint"] --> U["unit"]
+    U --> DC["data contract"] --> MB["model behaviour"]
     MB --> B["build image<br>tagged by commit SHA"] --> IT["integration test"]
     IT --> G{"green?<br>and on main?"}
     G -->|no| STOP["stop — nothing ships"]
     G -->|yes| PUSH["push image"] --> DEP["deploy to staging"]
 ```
 
-Cheap checks run first, so a schema mistake fails in 30 seconds rather than after a build.
+Cheap checks run first, so a schema mistake fails in 30 seconds rather than after a build. The
+secret scan goes ahead of even the lint, because it is the only failure in the pipeline that a
+later commit cannot undo: once a key is pushed it is disclosed, and reverting is theatre.
 
 Requirements:
 - Secrets come from the repository secret store or your provider's identity federation, never from
   a committed file
+- `make scan-secrets` runs in CI, and the checkout it runs against is **not** shallow. The default
+  `actions/checkout` depth of 1 makes the scan pass on a repository full of keys; see
+  `.github/workflows/ci.yml` for the `fetch-depth: 0` this requires, and `scripts/scan_secrets.py`
+  for why it refuses to run without it
 - The image is tagged with the commit SHA, not `latest`
 - Deploy only runs on green, only on main
 

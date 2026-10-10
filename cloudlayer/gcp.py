@@ -16,10 +16,16 @@ Notes:
 from __future__ import annotations
 
 import json
+import os
+import re
+import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +37,9 @@ from cloudlayer.base import CloudAdapter
 # reads BLOB_URI through an ordinary filesystem path and the training image needs no
 # Google SDK at all. Nothing else in the repo may know this prefix.
 GCS_FUSE_ROOT = "/gcs"
+
+MONITORING_API = "https://monitoring.googleapis.com/v3"
+LOGGING_API = "https://logging.googleapis.com/v2/entries:list"
 
 TERMINAL_STATES = {
     "JOB_STATE_SUCCEEDED",
@@ -61,7 +70,33 @@ class GcpAdapter(CloudAdapter):
 
     def download(self, uri: str, local_path: str) -> None:
         Path(local_path).parent.mkdir(parents=True, exist_ok=True)
-        _run(["gcloud", "storage", "cp", uri, str(local_path), "--quiet"])
+        if shutil.which("gcloud"):
+            _run(["gcloud", "storage", "cp", uri, str(local_path), "--quiet"])
+        else:
+            self._download_rest(uri, local_path)
+
+    def _download_rest(self, uri: str, local_path: str) -> None:
+        """Download without gcloud or an SDK — the serving container has neither.
+
+        Inside Cloud Run (or any GCP compute) the metadata server hands out a token for
+        the runtime service account; the object comes from the JSON API with it. Lab 3's
+        container reaches this through download(), so service/ never sees a gs:// detail.
+        """
+        if not uri.startswith("gs://"):
+            raise ValueError(f"expected gs://bucket/object, got {uri!r}")
+        bucket, _, obj = uri.removeprefix("gs://").partition("/")
+        meta = urllib.request.Request(
+            "http://metadata.google.internal/computeMetadata/v1/instance/"
+            "service-accounts/default/token",
+            headers={"Metadata-Flavor": "Google"},
+        )
+        with urllib.request.urlopen(meta, timeout=10) as r:
+            token = json.load(r)["access_token"]
+        url = (f"https://storage.googleapis.com/storage/v1/b/{bucket}/o/"
+               f"{urllib.parse.quote(obj, safe='')}?alt=media")
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=60) as r, open(local_path, "wb") as fh:
+            shutil.copyfileobj(r, fh)
 
     def download_prefix(self, key: str, local_dir: str) -> int:
         dest = Path(local_dir)
@@ -241,20 +276,27 @@ class GcpAdapter(CloudAdapter):
             "--format=value(model)", "--quiet",
         ]
         if existing:
-            cmd.append(f"--parent-model={existing[0].strip()}")
+            # `value(name)` prints the bare model id, and --parent-model wants the full
+            # resource name — given only the id it fails with "Location ID is not
+            # provided", which is how version 2 was first refused.
+            parent = existing[0].strip()
+            if "/" not in parent:
+                parent = (f"projects/{self.cfg.project_id}/locations/{self.cfg.region}"
+                          f"/models/{parent}")
+            cmd.append(f"--parent-model={parent}")
 
         out = _run(cmd).strip()
         if not out:
             raise RuntimeError("model upload returned nothing")
         # gcloud prints the model resource name, sometimes with @<version> and sometimes
-        # without. The caller was promised a VERSION, so ask for it rather than parse it
-        # out of whatever this gcloud release happens to print.
-        if "@" in out:
-            return out.rsplit("@", 1)[-1]
+        # without — and when uploading under a parent it printed "@1" for what the
+        # registry recorded as version 2. The caller was promised a VERSION, so ask the
+        # registry for the newest one rather than parse whatever this release prints.
+        model_id = out.split("@", 1)[0].rsplit("/", 1)[-1]
         return _run([
-            "gcloud", "ai", "models", "describe", out,
+            "gcloud", "ai", "models", "list-version", model_id,
             f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
-            "--format=value(versionId)",
+            "--sort-by=~versionCreateTime", "--limit=1", "--format=value(versionId)",
         ]).strip()
 
     # Prebuilt serving containers are published to three MULTI-REGION hosts, not to
@@ -279,6 +321,217 @@ class GcpAdapter(CloudAdapter):
         return f"{host}-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-5:latest"
 
 
+    # --- Lab 3 ---------------------------------------------------------------
+    #
+    # Target: Cloud Run, not a Vertex endpoint. Cloud Run forwards every path unchanged
+    # (so /predict/batch is reachable, which a Vertex endpoint's single predict route is
+    # not), splits traffic across revisions natively, and bills per instance-second.
+    # The model still comes from the Vertex Model Registry by version: deploy() resolves
+    # name@version to the artifact the registry recorded and hands the container that
+    # location. The container fetches it once, at startup, through download() above.
+
+    _INSTANCE = re.compile(r"^(\d+)cpu-(\d+)gi$")
+
+    def _model_artifact(self, name: str, version: str) -> str:
+        ids = _run([
+            "gcloud", "ai", "models", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--filter=displayName={name}", "--format=value(name)", "--quiet",
+        ]).splitlines()
+        if len(ids) != 1:
+            raise RuntimeError(f"expected one registered model named {name!r}, found {len(ids)}")
+        model_id = ids[0].strip().rsplit("/", 1)[-1]
+        uri = _run([
+            "gcloud", "ai", "models", "describe", f"{model_id}@{version}",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(artifactUri)", "--quiet",
+        ]).strip()
+        if not uri.startswith("gs://"):
+            raise RuntimeError(f"{name}@{version} has no gs:// artifact (got {uri!r})")
+        return uri
+
+    def deploy(self, model_ref: str, endpoint: str, instance: str, *,
+               image: str | None = None, traffic: bool = True, tag: str | None = None,
+               min_instances: int = 1, max_instances: int = 1, lab: int = 3) -> str:
+        """Deploy registry version `model_ref` ("name@version") as a new revision of the
+        Cloud Run service `endpoint`. Returns the revision name.
+
+        instance      "<n>cpu-<m>gi", e.g. "1cpu-2gi". One uvicorn worker per vCPU.
+        traffic       False deploys the revision with no traffic (a canary waiting for
+                      set_traffic); True sends it 100%.
+        min/max       1/1 by default: one always-warm instance, so a load test measures
+                      one instance's capacity rather than the autoscaler's, and p99 is
+                      not a cold start. Scale-to-zero is measured separately (min 0).
+        lab           which lab's teardown deletes it. Lab 4's staging service is 4.
+
+        Probes are where this platform's route difference lives: the startup probe hits
+        /ready, so no traffic reaches a revision whose model has not loaded; liveness
+        hits /health, so a slow request never gets a healthy container killed.
+        """
+        name, _, version = model_ref.partition("@")
+        if not version:
+            raise ValueError(f"model_ref must be name@version, got {model_ref!r}")
+        m = self._INSTANCE.match(instance)
+        if not m:
+            raise ValueError(f"instance must look like 1cpu-2gi, got {instance!r}")
+        cpu, mem = m.group(1), m.group(2)
+        image = image or os.environ.get("SERVE_IMAGE", "")
+        if "@sha256:" not in image:
+            raise ValueError(f"deploy a digest-pinned image, got {image!r}")
+
+        artifact = self._model_artifact(name, version)
+        labels = self.cfg.tags(lab)
+        env = {
+            "CLOUD_PROVIDER": "gcp",
+            "MODEL_URI": artifact,
+            "MODEL_VERSION": version,
+            "MODEL_REF": model_ref,
+            "WEB_CONCURRENCY": cpu,
+        }
+        suffix = f"v{version}-{cpu}cpu-{time.strftime('%H%M%S')}"
+        cmd = [
+            "gcloud", "run", "deploy", endpoint,
+            f"--image={image}",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--cpu={cpu}", f"--memory={mem}Gi",
+            "--concurrency=80",
+            f"--min-instances={min_instances}", f"--max-instances={max_instances}",
+            # Instance-based billing: CPU stays allocated between requests. The cost
+            # figures in Task 5 assume exactly this, so it is set, not defaulted.
+            "--no-cpu-throttling",
+            "--no-allow-unauthenticated",
+            f"--revision-suffix={suffix}",
+            "--set-env-vars=" + ",".join(f"{k}={v}" for k, v in env.items()),
+            "--labels=" + ",".join(f"{k}={v}" for k, v in labels.items()),
+            "--startup-probe=httpGet.path=/ready,periodSeconds=2,failureThreshold=90,timeoutSeconds=2",
+            "--liveness-probe=httpGet.path=/health,periodSeconds=15,timeoutSeconds=3",
+            "--quiet", "--format=value(status.latestCreatedRevisionName)",
+        ]
+        if not traffic:
+            cmd.append("--no-traffic")
+        if tag:
+            cmd.append(f"--tag={tag}")
+        return _run(cmd).strip() or f"{endpoint}-{suffix}"
+
+    def endpoint_url(self, endpoint: str, tag: str | None = None) -> str:
+        url = _run([
+            "gcloud", "run", "services", "describe", endpoint,
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(status.url)", "--quiet",
+        ]).strip()
+        if tag:  # https://svc-xyz.a.run.app -> https://tag---svc-xyz.a.run.app
+            url = url.replace("https://", f"https://{tag}---", 1)
+        return url
+
+    _token: tuple[float, str] | None = None
+
+    def auth_header(self) -> dict[str, str]:
+        """The service is not public. An identity token for the caller, cached ~50 min.
+
+        In CI the caller is a federated identity, and `gcloud auth print-identity-token`
+        cannot mint a token for one. The workflow gets it from the auth step instead and
+        passes it in SERVICE_ID_TOKEN.
+        """
+        if os.environ.get("SERVICE_ID_TOKEN"):
+            return {"Authorization": f"Bearer {os.environ['SERVICE_ID_TOKEN']}"}
+        now = time.time()
+        if not self._token or now - self._token[0] > 3000:
+            self._token = (now, _run(["gcloud", "auth", "print-identity-token"]).strip())
+        return {"Authorization": f"Bearer {self._token[1]}"}
+
+    def invoke(self, endpoint: str, payload: dict[str, Any], *,
+               url: str | None = None) -> dict[str, Any]:
+        """POST one payload. A payload with "rows" goes to /predict/batch.
+
+        Returns the status, the body, the model version the SERVICE reported (header),
+        and client-side latency — the caller decides what counts as a failure.
+        """
+        base = url or self.endpoint_url(endpoint)
+        path = "/predict/batch" if "rows" in payload else "/predict"
+        req = urllib.request.Request(
+            base + path, data=json.dumps(payload).encode(), method="POST",
+            headers={"Content-Type": "application/json", **self.auth_header()},
+        )
+        started = time.perf_counter()
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                status, headers, raw = r.status, r.headers, r.read()
+        except urllib.error.HTTPError as e:
+            status, headers, raw = e.code, e.headers, e.read()
+        latency_ms = (time.perf_counter() - started) * 1000
+        try:
+            body = json.loads(raw)
+        except ValueError:
+            body = {"raw": raw.decode(errors="replace")[:500]}
+        return {
+            "status": status,
+            "body": body,
+            "model_version": headers.get("x-model-version"),
+            "request_id": headers.get("x-request-id"),
+            "server_timing": headers.get("server-timing"),
+            "latency_ms": round(latency_ms, 2),
+        }
+
+    def traffic(self, endpoint: str) -> list[dict[str, Any]]:
+        raw = _run([
+            "gcloud", "run", "services", "describe", endpoint,
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=json(status.traffic)", "--quiet",
+        ])
+        return json.loads(raw).get("status", {}).get("traffic", [])
+
+    def set_traffic(self, endpoint: str, split: dict[str, int]) -> dict[str, Any]:
+        """Move traffic between revisions: {"<revision>": 90, "<revision>": 10}.
+
+        Returns the split the platform reports AFTER the change, with the UTC time the
+        call returned — rollback evidence is this record, not the command that was run.
+        """
+        if sum(split.values()) != 100:
+            raise ValueError(f"traffic must sum to 100, got {split}")
+        _run([
+            "gcloud", "run", "services", "update-traffic", endpoint,
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--to-revisions=" + ",".join(f"{k}={v}" for k, v in split.items()),
+            "--quiet",
+        ])
+        return {"at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+                "requested": split, "reported": self.traffic(endpoint)}
+
+    def request_counts(self, endpoint: str, start: str, end: str,
+                       step_s: int = 60) -> list[dict[str, Any]]:
+        """Requests per revision per step, as the PLATFORM counted them (Cloud Monitoring
+        run.googleapis.com/request_count). Independent of anything the client logged,
+        which is what makes it evidence that traffic moved. start/end: RFC 3339 UTC."""
+        token = _run(["gcloud", "auth", "print-access-token"])
+        flt = ('metric.type="run.googleapis.com/request_count" AND '
+               f'resource.labels.service_name="{endpoint}"')
+        q = urllib.parse.urlencode({
+            "filter": flt, "interval.startTime": start, "interval.endTime": end,
+            "aggregation.alignmentPeriod": f"{step_s}s",
+            "aggregation.perSeriesAligner": "ALIGN_SUM",
+            "aggregation.crossSeriesReducer": "REDUCE_SUM",
+            "aggregation.groupByFields": "resource.labels.revision_name",
+        })
+        url = (f"https://monitoring.googleapis.com/v3/projects/{self.cfg.project_id}"
+               f"/timeSeries?{q}")
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            series = json.load(r).get("timeSeries", [])
+        out = []
+        for ts in series:
+            rev = ts["resource"]["labels"]["revision_name"]
+            for pt in ts.get("points", []):
+                out.append({"end": pt["interval"]["endTime"], "revision": rev,
+                            "requests": int(pt["value"].get("int64Value", 0))})
+        return sorted(out, key=lambda r: (r["end"], r["revision"]))
+
+    def _serving_services(self, lab: str) -> list[str]:
+        return _run([
+            "gcloud", "run", "services", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--filter=metadata.labels.lab={lab}", "--format=value(metadata.name)", "--quiet",
+        ]).split()
+
     def teardown(self, tags: dict[str, str], purge: bool = False) -> list[str]:
         """Stop and remove what these tags cover. Returns what was acted on.
 
@@ -292,14 +545,38 @@ class GcpAdapter(CloudAdapter):
         failed or cancelled ones — which nothing points at — are removed.
 
         Deletion is asynchronous. A successful return means accepted, not gone.
+
+        Lab 3: a Cloud Run service carrying the lab label is deleted outright. It has a
+        warm minimum instance, so it bills by the hour whether or not anyone calls it,
+        and nothing points at it — the registry version it served stays registered.
         """
+        acted: list[str] = []
+        lab = tags.get("lab", "")
+        # Lab 4: the schedule goes first. A scheduler left behind keeps starting a job, and
+        # a job left behind keeps reading logs, long after anyone looks at the result.
+        for sched in self._schedules(lab):
+            _run(["gcloud", "scheduler", "jobs", "delete", sched,
+                  f"--location={self.cfg.region}", f"--project={self.cfg.project_id}", "--quiet"])
+            acted.append(f"deleted   Cloud Scheduler job {sched.rsplit('/', 1)[-1]}")
+        for job in self._run_jobs(lab):
+            _run(["gcloud", "run", "jobs", "delete", job,
+                  f"--region={self.cfg.region}", f"--project={self.cfg.project_id}", "--quiet"])
+            acted.append(f"deleted   Cloud Run job {job}")
+        for policy, title in self._alert_policies(lab):
+            self._api(f"{MONITORING_API}/{policy}", method="DELETE")
+            acted.append(f"deleted   alert policy {title!r}")
+        for svc in self._serving_services(lab):
+            _run(["gcloud", "run", "services", "delete", svc,
+                  f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+                  "--quiet"])
+            acted.append(f"deleted   Cloud Run service {svc}")
+
         listed = _run([
             "gcloud", "ai", "custom-jobs", "list",
             f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
             "--format=value(name,state,labels.lab)", "--quiet",
         ]).splitlines()
 
-        acted: list[str] = []
         for line in listed:
             parts = line.split("\t")
             if len(parts) < 3 or parts[2] != tags.get("lab"):
@@ -336,7 +613,100 @@ class GcpAdapter(CloudAdapter):
         if out.returncode != 0 or '"error"' in out.stdout:
             raise RuntimeError(f"delete {name} failed: {out.stdout or out.stderr}")
 
-    # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
-    # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
+    # --- Lab 4 ---------------------------------------------------------------
+    #
+    # Both run inside the scheduled drift job on Cloud Run, which has no gcloud, so they
+    # talk to the REST APIs with a token from gcloud (laptop, CI) or the metadata server.
+
+    def _access_token(self) -> str:
+        if shutil.which("gcloud"):
+            return _run(["gcloud", "auth", "print-access-token"])
+        meta = urllib.request.Request(
+            "http://metadata.google.internal/computeMetadata/v1/instance/"
+            "service-accounts/default/token",
+            headers={"Metadata-Flavor": "Google"},
+        )
+        with urllib.request.urlopen(meta, timeout=10) as r:
+            return json.load(r)["access_token"]
+
+    def _api(self, url: str, body: dict[str, Any] | None = None,
+             method: str | None = None) -> dict[str, Any]:
+        req = urllib.request.Request(
+            url, data=None if body is None else json.dumps(body).encode(),
+            method=method or ("POST" if body is not None else "GET"),
+            headers={"Authorization": f"Bearer {self._access_token()}",
+                     "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                raw = r.read()
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"{req.method} {url} -> {e.code}: "
+                               f"{e.read().decode(errors='replace')[:500]}") from None
+        return json.loads(raw) if raw else {}
+
+    def emit_metric(self, name: str, value: float, unit: str = "None",
+                    labels: dict[str, str] | None = None) -> None:
+        """One point of custom.googleapis.com/itcs355/<name, dots as slashes> on the
+        `global` resource. The first write creates the descriptor (GAUGE, DOUBLE, with
+        whatever label keys it carried), so `unit` is not recorded; the dashboard says it.
+        """
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        series = {
+            "metric": {"type": f"custom.googleapis.com/itcs355/{name.replace('.', '/')}",
+                       "labels": {k: str(v) for k, v in (labels or {}).items()}},
+            "resource": {"type": "global", "labels": {"project_id": self.cfg.project_id}},
+            "points": [{"interval": {"endTime": now}, "value": {"doubleValue": float(value)}}],
+        }
+        self._api(f"{MONITORING_API}/projects/{self.cfg.project_id}/timeSeries",
+                  {"timeSeries": [series]})
+
+    def recent_inputs(self, endpoint: str, minutes: int) -> list[dict[str, Any]]:
+        """Rows the Cloud Run service scored in the last `minutes`, from its request logs.
+
+        service/app.py writes the scored rows into each request's log line, and Cloud
+        Logging parses that line into jsonPayload.msg. Only status 200 with rows counted:
+        a 422 never reached the model, so it is not part of what the model saw.
+        """
+        since = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat(
+            timespec="seconds").replace("+00:00", "Z")
+        body: dict[str, Any] = {
+            "resourceNames": [f"projects/{self.cfg.project_id}"],
+            "filter": ('resource.type="cloud_run_revision" '
+                       f'AND resource.labels.service_name="{endpoint}" '
+                       'AND jsonPayload.msg.status=200 AND jsonPayload.msg.rows>=1 '
+                       f'AND timestamp>="{since}"'),
+            "orderBy": "timestamp asc",
+            "pageSize": 1000,
+        }
+        rows: list[dict[str, Any]] = []
+        while True:
+            page = self._api(LOGGING_API, body)
+            for entry in page.get("entries", []):
+                rows.extend(entry.get("jsonPayload", {}).get("msg", {}).get("inputs") or [])
+            if not page.get("nextPageToken"):
+                return rows
+            body["pageToken"] = page["nextPageToken"]
+
+    def _schedules(self, lab: str) -> list[str]:
+        """Cloud Scheduler jobs carry no labels, so Lab 4 names them itcs355-lab<N>-*."""
+        names = _run([
+            "gcloud", "scheduler", "jobs", "list",
+            f"--location={self.cfg.region}", f"--project={self.cfg.project_id}",
+            "--format=value(name)", "--quiet",
+        ]).split()
+        return [n for n in names if n.rsplit("/", 1)[-1].startswith(f"itcs355-lab{lab}-")]
+
+    def _run_jobs(self, lab: str) -> list[str]:
+        return _run([
+            "gcloud", "run", "jobs", "list",
+            f"--region={self.cfg.region}", f"--project={self.cfg.project_id}",
+            f"--filter=metadata.labels.lab={lab}", "--format=value(metadata.name)", "--quiet",
+        ]).split()
+
+    def _alert_policies(self, lab: str) -> list[tuple[str, str]]:
+        q = urllib.parse.urlencode({"filter": f'user_labels.lab="{lab}"'})
+        found = self._api(f"{MONITORING_API}/projects/{self.cfg.project_id}/alertPolicies?{q}")
+        return [(p["name"], p.get("displayName", "")) for p in found.get("alertPolicies", [])]
+
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
-    # teardown                          -> Lab 5 (filter resources by label)

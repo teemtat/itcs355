@@ -1,0 +1,12 @@
+2026-10-09T13:10:10+00:00  6000 rows
+feature                      psi        ks   ref mean   cur mean  verdict
+temp_c                   0.37810   0.25083     79.580     85.557  significant
+pressure_kpa             0.00627   0.01583    318.185    318.061  stable
+ambient_humidity         0.00398   0.01967     58.145     57.798  stable
+hours_since_service      0.00264   0.01250   4555.530   4543.557  stable
+vibration_mm_s           0.00242   0.01083      4.587      4.580  stable
+load_pct                 0.00100   0.01133     63.772     63.817  stable
+{"event": "drift_check", "checked_at": "2026-10-09T13:10:10+00:00", "rows": 6000, "psi": {"temp_c": 0.3781, "pressure_kpa": 0.00627, "ambient_humidity": 0.00398, "hours_since_service": 0.00264, "vibration_mm_s": 0.00242, "load_pct": 0.001}}
+
+ALERT  1 feature(s) at or above threshold 0.05: temp_c
+Before you retrain: is this drift, or is it a broken upstream pipeline? Retraining on corrupted data destroys a working model faster than any schedule would.

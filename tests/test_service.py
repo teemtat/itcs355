@@ -87,3 +87,41 @@ def test_batch_matches_singles(client):
 def test_batch_size_limit_enforced(client):
     r = client.post("/predict/batch", json={"rows": [VALID] * 101})
     assert r.status_code == 422
+
+
+def test_ready_is_503_while_model_is_not_loaded(client):
+    """The exact window the lab's sequence diagram warns about: alive, but cannot score."""
+    from service.app import STATE
+
+    model, STATE["model"] = STATE["model"], None
+    try:
+        assert client.get("/health").status_code == 200
+        r = client.get("/ready")
+        assert r.status_code == 503
+        assert r.json()["status"] == "not_ready"
+        assert client.post("/predict", json=VALID).status_code == 503
+    finally:
+        STATE["model"] = model
+
+
+def test_malformed_input_says_which_field(client):
+    r = client.post("/predict", json={**VALID, "load_pct": 250.0})
+    assert r.status_code == 422
+    assert "load_pct" in str(r.json()["detail"])
+
+
+def test_server_timing_separates_scoring(client):
+    timing = client.post("/predict", json=VALID).headers["server-timing"]
+    assert "app;dur=" in timing and "score;dur=" in timing
+
+
+def test_request_log_is_one_json_object(client, caplog):
+    import json
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="service"):
+        client.post("/predict", json=VALID, headers={"x-request-id": 'abc"quote'})
+    lines = [json.loads(r.getMessage()) for r in caplog.records if r.name == "service"]
+    hit = [ln for ln in lines if ln.get("request_id") == 'abc"quote']
+    assert hit and hit[0]["model_version"] == "test-1"
+    assert hit[0]["latency_ms"] >= 0 and hit[0]["path"] == "/predict"

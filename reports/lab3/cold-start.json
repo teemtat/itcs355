@@ -1,0 +1,54 @@
+[
+  {
+    "sent": "2026-09-26T05:47:27Z",
+    "status": 200,
+    "first_request_ms": 14571.38,
+    "warm_follow_up_ms": [
+      155.08,
+      146.24,
+      211.24,
+      121.17,
+      173.88
+    ],
+    "cold_confirmed_by_log": true,
+    "model_loaded": [
+      {
+        "at": "2026-09-26T05:47:42.400198Z",
+        "revision": "itcs355-serve-v1-2cpu-123000",
+        "load_ms": 10293.4
+      },
+      {
+        "at": "2026-09-26T05:47:42.400131Z",
+        "revision": "itcs355-serve-v1-2cpu-123000",
+        "load_ms": 10293.4
+      }
+    ],
+    "idle_min": 17.0
+  },
+  {
+    "sent": "2026-09-26T06:06:15Z",
+    "status": 200,
+    "first_request_ms": 8438.83,
+    "warm_follow_up_ms": [
+      125.21,
+      175.45,
+      138.73,
+      140.63,
+      147.69
+    ],
+    "cold_confirmed_by_log": true,
+    "model_loaded": [
+      {
+        "at": "2026-09-26T06:06:22.225052Z",
+        "revision": "itcs355-serve-v1-2cpu-123000",
+        "load_ms": 3787.6
+      },
+      {
+        "at": "2026-09-26T06:06:22.223448Z",
+        "revision": "itcs355-serve-v1-2cpu-123000",
+        "load_ms": 3789.1
+      }
+    ],
+    "idle_min": 17.0
+  }
+]

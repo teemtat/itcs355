@@ -67,8 +67,27 @@ class CloudAdapter(ABC):
     def invoke(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError("Lab 3")
 
+    def set_traffic(self, endpoint: str, split: dict[str, int]) -> dict[str, Any]:
+        """Split an endpoint's traffic across deployed versions, {version_ref: percent}.
+
+        SageMaker calls these production variant weights, Azure ML deployment traffic,
+        Vertex AI a traffic split, Cloud Run revision traffic. Returns what the platform
+        reports after the change, timestamped — that record is the rollback evidence.
+        """
+        raise NotImplementedError("Lab 3")
+
     # --- Lab 4 ---------------------------------------------------------------
-    def emit_metric(self, name: str, value: float, unit: str = "None") -> None:
+    def emit_metric(self, name: str, value: float, unit: str = "None",
+                    labels: dict[str, str] | None = None) -> None:
+        """Write one point of a custom metric, e.g. ("drift.psi", 0.31, labels={"feature":
+        "temp_c"}). CloudWatch calls the labels dimensions; the dashboard and the alert
+        policy both read the metric back by name, so the name is the contract."""
+        raise NotImplementedError("Lab 4")
+
+    def recent_inputs(self, endpoint: str, minutes: int) -> list[dict[str, Any]]:
+        """The rows `endpoint` actually scored in the last `minutes`, oldest first, read
+        back from the platform's request logs. This is the drift detector's window of
+        production inputs."""
         raise NotImplementedError("Lab 4")
 
     # --- Lab 5 ---------------------------------------------------------------

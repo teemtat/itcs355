@@ -1,25 +1,53 @@
 {
-  "_comment": "Lab 4 — dashboard as code. Portable Grafana definition; import it, or translate the panels to CloudWatch / Azure Monitor / Cloud Monitoring. Committing the dashboard is better than clicking one together, and is noted favourably.",
+  "_comment": "Lab 4 — dashboard as code, provider-neutral form. The one actually deployed is infra/gcp/dashboard.json (Cloud Monitoring), created by infra/gcp/lab4-monitoring.sh; each panel here names the Cloud Monitoring metric it maps to. Committing the dashboard is better than clicking one together, and is noted favourably.",
   "title": "ITCS355 — Prediction service",
   "refresh": "30s",
   "panels": [
-    {"id": 1, "title": "Request rate", "type": "timeseries", "unit": "reqps",
-     "target": "sum(rate(http_requests_total[1m]))"},
-    {"id": 2, "title": "Error rate by class", "type": "timeseries", "unit": "percentunit",
-     "target": "sum by (status_class) (rate(http_requests_total{status_class=~\"4xx|5xx\"}[5m])) / sum(rate(http_requests_total[5m]))",
-     "_note": "4xx and 5xx must be split. 4xx is usually a caller problem; 5xx is yours."},
-    {"id": 3, "title": "Latency p50 / p95 / p99", "type": "timeseries", "unit": "ms",
-     "targets": [
-       "histogram_quantile(0.50, sum by (le) (rate(request_latency_ms_bucket[5m])))",
-       "histogram_quantile(0.95, sum by (le) (rate(request_latency_ms_bucket[5m])))",
-       "histogram_quantile(0.99, sum by (le) (rate(request_latency_ms_bucket[5m])))"
-     ],
-     "_note": "If p99 is far above p95 in a repeating pattern, suspect cold start or a per-request model load."},
-    {"id": 4, "title": "Feature drift (PSI, rolling)", "type": "timeseries",
-     "target": "drift_psi",
-     "_note": "TODO(Lab 4): at least one feature-distribution statistic is required. Emit it from monitoring/drift.py via adapter.emit_metric."},
-    {"id": 5, "title": "Model version in production", "type": "stat",
-     "target": "model_version_info",
-     "_note": "During a canary you should see two. If you see two when you are not deploying, something is wrong."}
+    {
+      "id": 1,
+      "title": "Request rate",
+      "type": "timeseries",
+      "unit": "reqps",
+      "target": "sum(rate(http_requests_total[1m]))",
+      "gcp": "run.googleapis.com/request_count, ALIGN_RATE, summed"
+    },
+    {
+      "id": 2,
+      "title": "Error rate by class",
+      "type": "timeseries",
+      "unit": "percentunit",
+      "target": "sum by (status_class) (rate(http_requests_total{status_class=~\"4xx|5xx\"}[5m])) / sum(rate(http_requests_total[5m]))",
+      "_note": "4xx and 5xx must be split. 4xx is usually a caller problem; 5xx is yours.",
+      "gcp": "request_count by response_code_class 4xx and 5xx, each divided by all requests"
+    },
+    {
+      "id": 3,
+      "title": "Latency p50 / p95 / p99",
+      "type": "timeseries",
+      "unit": "ms",
+      "targets": [
+        "histogram_quantile(0.50, sum by (le) (rate(request_latency_ms_bucket[5m])))",
+        "histogram_quantile(0.95, sum by (le) (rate(request_latency_ms_bucket[5m])))",
+        "histogram_quantile(0.99, sum by (le) (rate(request_latency_ms_bucket[5m])))"
+      ],
+      "_note": "If p99 is far above p95 in a repeating pattern, suspect cold start or a per-request model load.",
+      "gcp": "run.googleapis.com/request_latencies, REDUCE_PERCENTILE_50/95/99; SLO line at 100 ms (endpoint)"
+    },
+    {
+      "id": 4,
+      "title": "Feature drift (PSI, rolling 30-min window)",
+      "type": "timeseries",
+      "target": "drift_psi",
+      "_note": "monitoring/drift.py --endpoint, every 5 min (Cloud Scheduler -> Cloud Run job): PSI of each feature over the last 30 min of scored inputs vs the training data, written with adapter.emit_metric. Alert at 0.05; why 0.05 is in the README.",
+      "gcp": "custom.googleapis.com/itcs355/drift/psi, label feature; companions drift/ks, drift/mean, drift/window_rows"
+    },
+    {
+      "id": 5,
+      "title": "Model version in production",
+      "type": "stat",
+      "target": "model_version_info",
+      "_note": "During a canary you should see two. If you see two when you are not deploying, something is wrong.",
+      "gcp": "logging.googleapis.com/user/itcs355_requests_by_model_version (log-based, label model_version)"
+    }
   ]
 }

@@ -1,0 +1,5 @@
+# 2026-09-26T06:08:35Z make teardown (LAB=3)
+  deleted   Cloud Run service itcs355-serve
+# gcloud run services list --region=asia-southeast1 -> 0 services
+# gcloud ai endpoints list -> 0 Vertex endpoints
+# make cost-report: PASS  nothing found under lab=3 tags

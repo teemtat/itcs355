@@ -1,0 +1,19 @@
+# Requests per model version, counted from the service's own log line (service/app.py).
+# The dashboard's "model version in production" panel reads this. During a canary it
+# shows two lines; outside one, two lines mean something is serving that should not be.
+description: ITCS355 requests scored, by the model version that answered
+filter: >-
+  resource.type="cloud_run_revision"
+  AND jsonPayload.msg.path:"/predict"
+  AND jsonPayload.msg.model_version:*
+labelExtractors:
+  model_version: EXTRACT(jsonPayload.msg.model_version)
+  service: EXTRACT(resource.labels.service_name)
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  labels:
+    - key: model_version
+      valueType: STRING
+    - key: service
+      valueType: STRING

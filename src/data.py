@@ -50,6 +50,20 @@ PLAUSIBLE_RANGES: dict[str, tuple[float, float]] = {
     "ambient_humidity": (0.0, 100.0),
 }
 
+# Lab 4: where each feature's MEDIAN must sit. The plausible ranges above stop impossible
+# values; they do not stop a unit change. Pressure sent in bar (~3.2) or load as a 0–1
+# fraction (~0.63) is inside every range and would score silently. The training data's
+# medians are 78.9 °C, 4.5 mm/s, 318 kPa, 4,624 h, 63% and 58%. Five other fleets from the
+# same generator moved each median by under 10%, so these bands are wide on purpose.
+TYPICAL_MEDIANS: dict[str, tuple[float, float]] = {
+    "temp_c": (60.0, 100.0),
+    "vibration_mm_s": (2.0, 8.0),
+    "pressure_kpa": (250.0, 400.0),
+    "hours_since_service": (2000.0, 7000.0),
+    "load_pct": (40.0, 85.0),
+    "ambient_humidity": (40.0, 75.0),
+}
+
 
 def load_raw(path: Path) -> pd.DataFrame:
     if not path.exists():

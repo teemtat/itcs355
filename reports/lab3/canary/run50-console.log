@@ -1,0 +1,13 @@
+[2026-09-26T05:23:49.796+00:00] baseline 180s on itcs355-serve-v1-2cpu-115928
+  baseline n=13108 mean_p=0.1220 sd=0.1322 log_loss=0.2719
+[2026-09-26T05:27:16.652+00:00] traffic 50/50 -> watching
+  t+   10s  n=9827  mean_p=0.12554  z=2.68  log_loss=0.27876
+  t+   20s  n=9870  mean_p=0.12849  z=4.91  log_loss=0.27875
+  t+   30s  n=9932  mean_p=0.1322  z=7.72  log_loss=0.28042
+[2026-09-26T05:27:51.341+00:00] rolled back -> itcs355-serve-v1-2cpu-115928=100
+{
+  "detection_s": 30.1,
+  "baseline_max_abs_z": 0.9,
+  "requests": 29696,
+  "errors": 0
+}

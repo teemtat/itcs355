@@ -2,31 +2,51 @@
 #
 # Most students write a target and stop. The third field is where the thinking is: an SLO
 # without a stated response to exhaustion is a wish, not an objective.
+#
+# Who uses it: maintenance dashboards that score a machine when its reading arrives
+# (Lab 3). A missed or slow answer delays one risk update until the next reading; nobody
+# is harmed in that second, but a dashboard that is often blank stops being trusted.
 
 service: itcs355-predict
 
 objectives:
   - name: availability
-    target: 0.995              # TODO(Lab 4): your number, and defend it
+    # 0.5% of requests, ~3.6 hours of full outage in 30 days. One instance in one region
+    # (Lab 3) cannot honestly promise 99.9%: a single bad deploy plus its rollback eats
+    # most of a 43-minute budget. Maintenance is planned by the shift, so a few minutes
+    # of errors cost little; hours do.
+    target: 0.995
     window: 30d
     measurement: "successful responses / total responses, excluding 4xx"
     on_budget_exhausted: |
-      TODO(Lab 4): what actually happens. Freeze deploys? Page someone? Fall back to the
-      last known-good version? Accept it and revise the target? All are defensible;
-      silence is not.
+      Freeze model and feature deploys; only rollbacks and reliability fixes ship until
+      the 30-day error rate is back under 0.5%. The person who owns the service is paged
+      when 50% of the budget burns within a day, not when it reaches zero. If the burn was
+      the platform and not our change, the freeze stays, and the post-mortem decides
+      whether a second region is worth its cost.
 
   - name: latency
-    target_p95_ms: 200         # TODO(Lab 4): must match the target you set in loadtest/k6.js
+    # Matches loadtest/k6.js: p95 < 200 ms at the client in Thailand, 10 users. The
+    # dashboard can only see the endpoint, which excludes the ~100 ms round trip measured
+    # in Lab 3, so its alert line is 100 ms. The weekly k6 run checks the client number.
+    target_p95_ms: 200
+    endpoint_p95_ms: 100
     window: 7d
-    measurement: "p95 of /predict, measured at the endpoint, not at the client"
+    measurement: "p95 of /predict, measured at the endpoint (run.googleapis.com/request_latencies), with the client figure from the weekly k6 run"
     on_budget_exhausted: |
-      TODO(Lab 4)
+      Move to the size Lab 3 showed meets the target (2 vCPU / 4 GB, p95 179 ms at 10
+      users), then find out why it became slower: a bigger model, more traffic, or
+      payloads closer to the 100-row cap. If the larger size does not fix it either, the
+      target is reopened with the dashboard owners rather than quietly missed.
 
   - name: freshness
     target_max_model_age_days: 30
     window: continuous
     measurement: "days since the production model version was trained"
     on_budget_exhausted: |
-      TODO(Lab 4): this one interacts with your retraining trigger in Lab 5. Keep them
-      consistent — an SLO demanding a 30-day-old model and a 90-day retrain schedule is
-      a contradiction you should notice here rather than in production.
+      Retrain on the most recent 30 days, but only after the data contract tests and the
+      drift check pass on that data: if the inputs are what changed, a retrain learns the
+      fault. If they fail, the old model keeps serving past 30 days and the breach is
+      recorded; an old model on good data beats a new one on broken data. Lab 5's
+      retraining trigger must run at least every 30 days (I will use 28, so a failed run
+      has time to be retried), or this SLO is broken by design.
