@@ -8,7 +8,8 @@
 #   log-based metric  itcs355_requests_by_model_version   (dashboard: model version)
 #   Cloud Run job     itcs355-lab4-drift                  (monitoring/drift.py, same image)
 #   Cloud Scheduler   itcs355-lab4-drift                  (every 5 min -> the job)
-#   email channel + alert policy on custom.googleapis.com/itcs355/drift/psi > 0.05
+#   email channel + alert policy on custom.googleapis.com/itcs355/drift/psi > 0.05,
+#                   and one for the detector itself going quiet for 20 min
 #   dashboard         infra/gcp/dashboard.json
 #
 # `make teardown LAB=4` removes the schedule, the job, the policy and the service. The
@@ -77,20 +78,25 @@ for m in psi ks mean window_rows; do
     \"description\":\"ITCS355 Lab 4 drift job: $m over the last 30 min of scored inputs\"}" >/dev/null
 done
 
-echo "6. alert policy"
+echo "6. alert policies: drift, and the detector going blind"
 for old in $(rest "$API/alertPolicies?filter=user_labels.lab%3D%224%22" \
              | python3 -c "import json,sys; [print(p['name']) for p in json.load(sys.stdin).get('alertPolicies', [])]"); do
   rest -X DELETE "https://monitoring.googleapis.com/v3/$old" >/dev/null
 done
 # A metric descriptor created a moment ago can take up to 10 minutes to be accepted in
 # a policy filter (404 until then), so retry rather than fail on a fresh project.
-for attempt in $(seq 1 24); do
-  if out=$(sed "s#__CHANNEL__#$CHANNEL#" infra/gcp/drift-alert-policy.json \
-           | rest -X POST "$API/alertPolicies" -d @- 2>&1); then
-    echo "$out" | python3 -c "import json,sys; print('   ', json.load(sys.stdin)['name'])"; break
-  fi
-  [ "$attempt" = 24 ] && { echo "$out"; exit 1; }
-  echo "    metric not visible to alerting yet, retrying in 30 s"; sleep 30
+# The second policy exists because of the first run: the drift incident closed itself
+# when the replay ended, as "missing data". Nothing had been fixed; the detector had just
+# stopped seeing inputs. Silence from a detector has to page someone too.
+for policy in drift-alert-policy detector-blind-policy; do
+  for attempt in $(seq 1 24); do
+    if out=$(sed "s#__CHANNEL__#$CHANNEL#" "infra/gcp/$policy.json" \
+             | rest -X POST "$API/alertPolicies" -d @- 2>&1); then
+      echo "$out" | python3 -c "import json,sys; print('   ', json.load(sys.stdin)['name'])"; break
+    fi
+    [ "$attempt" = 24 ] && { echo "$out"; exit 1; }
+    echo "    metric not visible to alerting yet, retrying in 30 s"; sleep 30
+  done
 done
 
 echo "7. dashboard"

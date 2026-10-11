@@ -1,0 +1,22 @@
+{
+  "displayName": "itcs355 drift detector blind: no scored window for 20 min",
+  "userLabels": {"course": "itcs355", "lab": "4"},
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "No drift/psi point for 20 minutes",
+      "conditionAbsent": {
+        "filter": "metric.type=\"custom.googleapis.com/itcs355/drift/psi\" AND resource.type=\"global\" AND metric.labels.feature=\"temp_c\"",
+        "duration": "1200s",
+        "aggregations": [{"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_MAX"}],
+        "trigger": {"count": 1}
+      }
+    }
+  ],
+  "alertStrategy": {"autoClose": "86400s"},
+  "notificationChannels": ["__CHANNEL__"],
+  "documentation": {
+    "mimeType": "text/markdown",
+    "content": "The drift job has not scored a window for 20 minutes: the schedule stopped, the job is failing, or the service is getting under 900 scored requests per 30 min. While this is open the drift alert cannot fire, and a drift incident that 'recovered' in this time recovered only because its data disappeared. Check the Cloud Run job's executions, then the service's traffic."
+  }
+}
