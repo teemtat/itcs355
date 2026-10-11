@@ -378,18 +378,36 @@ client number would be judged.
 
 ## 9. Cost
 
-- **Staging:** about 1.2 hours of 1 vCPU / 2 GB instance time at 3.17 THB/h (Lab 3
-  price), so **≈ 4 THB**. It scales to zero, so the idle time after the replay costs
-  nothing.
-- **Drift job:** it ran every 5 minutes from 04:30 UTC on 10 Oct until teardown at
-  07:30 UTC on 11 Oct, about 324 runs of ~10–15 s on 1 vCPU / 1 GB. **About 2–3 THB.**
-  Only ~14 of those runs were part of the exercise. The rest happened because I left
-  the schedule running for a day while waiting for screenshots, which is the "schedule
-  that survives" problem the handout warns about. It was cheap only because the job
-  skips quickly when there is no traffic.
-- **Scheduler, custom metrics, log ingestion, alerting:** inside the free tiers at this
-  volume (3 free scheduler jobs; a few hundred metric points; a few MB of logs).
-- **Total: about 7 THB.** I still need to confirm it on the billing page.
+**What I estimated:** about 7 THB. I worked it out from the instance time Cloud Run
+itself reports (`run.googleapis.com/container/billable_instance_time`, 9–11 Oct), using
+Lab 3's prices.
+- **Staging:** 1.48 h on 1 vCPU / 2 GB, ≈ 4.7 THB. It scales to zero, so it costs
+  nothing once traffic stops.
+- **Drift job:** 0.91 h on 1 vCPU / 1 GB, ≈ 2.5 THB.
+  - It ran every 5 minutes from 04:30 UTC on 10 Oct until teardown at 07:30 UTC on
+    11 Oct, ~324 runs.
+  - Only ~14 of those runs were the exercise. The rest happened because I left the
+    schedule running for a day while waiting for screenshots, the "schedule that
+    survives" problem the handout warns about.
+  - It stayed cheap only because the job skips quickly when there is no traffic.
+- **The `scamshield` service in the same project:** 186 s, negligible.
+- **Scheduler, custom metrics, logs, alerting:** inside the free tiers at this volume.
+
+**What the billing page says:** **Cloud Run ฿17.16** for 9–11 Oct, all covered by
+credits, so **฿0.00 paid** (`reports/lab4/billing-9-11oct.webp`).
+- Billing days are in US Pacific time, so the run on 10 Oct (UTC) appears under 9 Oct.
+- Every other service shows ฿0.00.
+- Over the last 90 days, all labs together come to ฿38.88 of usage and ฿0 paid
+  (`reports/lab4/billing-90days.webp`).
+
+**The actual bill is about 2.4× my estimate, and I can't fully explain why from the
+instance time.** My guesses:
+- Cloud Run jobs are priced differently from services.
+- Each job run is billed for start-up time that the metric doesn't count.
+
+The billing page is the number that counts. For Lab 5 the lesson is concrete: my
+estimate counted only time spent serving, and missed the overhead around it.
+The 10–11 Oct figures may still rise as late billing data arrives.
 
 ---
 
