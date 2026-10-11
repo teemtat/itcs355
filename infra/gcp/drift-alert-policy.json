@@ -1,5 +1,5 @@
 {
-  "displayName": "itcs355 input drift: PSI >= 0.05",
+  "displayName": "itcs355 input drift: PSI above 0.05",
   "userLabels": {"course": "itcs355", "lab": "4"},
   "combiner": "OR",
   "conditions": [
@@ -7,7 +7,7 @@
       "displayName": "PSI of any feature, last 30 min of production inputs vs training data",
       "conditionThreshold": {
         "filter": "metric.type=\"custom.googleapis.com/itcs355/drift/psi\" AND resource.type=\"global\"",
-        "comparison": "COMPARISON_GE",
+        "comparison": "COMPARISON_GT",
         "thresholdValue": 0.05,
         "duration": "0s",
         "aggregations": [{"alignmentPeriod": "300s", "perSeriesAligner": "ALIGN_MAX"}],
@@ -19,6 +19,6 @@
   "notificationChannels": ["__CHANNEL__"],
   "documentation": {
     "mimeType": "text/markdown",
-    "content": "The scheduled drift job (Cloud Run job itcs355-lab4-drift, every 5 min) compared the last 30 minutes of inputs that itcs355-staging scored with the training data, and one feature's PSI reached 0.05. The incident names the feature.\n\n**Do not retrain yet.** First: did the schema, the null rate, or a feature's units change? Run the data contract tests against a sample of the window. If yes, an upstream producer broke: fix it and backfill, keep the model. Only if the inputs are valid and the change is real and lasting is retraining the answer.\n\nThreshold reasoning: README, Lab 4 section."
+    "content": "The scheduled drift job (Cloud Run job itcs355-lab4-drift, every 5 min) compared the last 30 minutes of inputs that itcs355-staging scored with the training data, and one feature's PSI went above 0.05. The incident names the feature.\n\n**Do not retrain yet.** First: did the schema, the null rate, or a feature's units change? Run the data contract tests against a sample of the window. If yes, an upstream producer broke: fix it and backfill, keep the model. Only if the inputs are valid and the change is real and lasting is retraining the answer.\n\nThreshold reasoning: README, Lab 4 section."
   }
 }

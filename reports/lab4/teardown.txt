@@ -1,0 +1,18 @@
+# make teardown LAB=4 — 2026-10-11T07:30:07Z
+  deleted   Cloud Scheduler job itcs355-lab4-drift
+  deleted   Cloud Run job itcs355-lab4-drift
+  deleted   alert policy 'itcs355 input drift: PSI above 0.05'
+  deleted   Cloud Run service itcs355-staging
+
+# make cost-report LAB=4 — 2026-10-11T07:30:20Z
+python scripts/teardown_verify.py --lab 4
+searching for resources tagged {'course': 'itcs355', 'student': 'itcs355-6688143', 'lab': '4'}
+
+PASS  nothing found under these tags
+Still check the console. An untagged resource is invisible to this script and will keep billing.
+
+# checked by hand
+scheduler jobs:
+run jobs:
+run services:
+scamshield	
