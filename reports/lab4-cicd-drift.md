@@ -193,7 +193,11 @@ During the exercise (`reports/lab4/drift-exercise/cloud-monitoring.json`):
   (cold start from zero).
 - **Model version:** all 4,198 logged `/predict` requests answered by version 1.
 
-Screenshot: `reports/lab4/drift-exercise/dashboard.png`.
+Screenshot: `reports/lab4/drift-exercise/dashboard.webp`, showing yesterday in Thai time.
+- PSI for temp_c leaves the floor after 12:10 and climbs past the 0.05 line. The other
+  five features stay flat.
+- The window mean rises from ~80 to ~86, rows per window reach ~1,780, the 4xx line
+  sits near 1%, and latency stays far under the 100 ms line.
 
 ---
 
@@ -325,7 +329,7 @@ temp_c **+6 °C**, for 30 minutes.
 | 05:15:16 | temp_c PSI 0.004 (14% of window drifted) | `drift-checks.jsonl` |
 | 05:20:15 | temp_c PSI 0.029 (31%) | `drift-checks.jsonl` |
 | **05:25:15** | **temp_c PSI 0.0655 (48%): detector over the line**; other features ≤ 0.011 | `drift-checks.jsonl`, metric |
-| **05:28** | **Cloud Monitoring incident opens, email arrives** | `alert-email.png` |
+| **05:28** | **Cloud Monitoring incident opens, email arrives** (12:28 Thai time) | `alert-firing-email.png` |
 | 05:30:15 | 0.126 | |
 | 05:35:15 | 0.226 | |
 | 05:40:19 | 0.387 (window fully drifted, same as the offline +6 °C figure of 0.387) | |
@@ -345,6 +349,25 @@ Where the 17 minutes went:
 
 Post-mortem: [`reports/lab4-postmortem.md`](lab4-postmortem.md).
 
+### What the "recovered" email taught me
+
+At 06:30 UTC a second email said **"Alert recovered … custom/itcs355/drift/psi is
+missing data"** (`reports/lab4/drift-exercise/alert-recovered-email.webp`). Nothing had
+been fixed.
+- **Why it closed:** the replay had stopped at 05:41. As the window emptied, the job
+  went back to skipping (fewer than 900 rows) and wrote no PSI. Cloud Monitoring treats
+  no data as no problem, so after an hour the incident closed itself.
+- **Why that matters:** in production the same thing would happen if the sensor
+  pipeline died, or if the drift job started crashing. The drift alert would go quiet
+  exactly when nothing is being checked.
+- **What I added:** a second policy, `infra/gcp/detector-blind-policy.json`. It pages
+  when no temp_c PSI point has been written for 20 minutes.
+  - I first tried to keep the drift incident open on missing data. Cloud Monitoring
+    only allows that on conditions with a non-zero duration, and mine fires on a single
+    point.
+  - I checked the new policy against the API by creating and deleting it. It was added
+    after the run, so it has not fired for real yet.
+
 **Client latency from my laptop was slower today.** p95 was 226–248 ms at one request
 per second, above Lab 3's 112–131 ms. The endpoint itself stayed at p95 16–22 ms, so
 the extra time was on the network between my laptop and Singapore, not the service. The
@@ -358,13 +381,40 @@ client number would be judged.
 - **Staging:** about 1.2 hours of 1 vCPU / 2 GB instance time at 3.17 THB/h (Lab 3
   price), so **≈ 4 THB**. It scales to zero, so the idle time after the replay costs
   nothing.
-- **Drift job:** about 25 runs of ~10 seconds on 1 vCPU. Under 0.1 THB.
+- **Drift job:** it ran every 5 minutes from 04:30 UTC on 10 Oct until teardown at
+  07:30 UTC on 11 Oct, about 324 runs of ~10–15 s on 1 vCPU / 1 GB. **About 2–3 THB.**
+  Only ~14 of those runs were part of the exercise. The rest happened because I left
+  the schedule running for a day while waiting for screenshots, which is the "schedule
+  that survives" problem the handout warns about. It was cheap only because the job
+  skips quickly when there is no traffic.
 - **Scheduler, custom metrics, log ingestion, alerting:** inside the free tiers at this
   volume (3 free scheduler jobs; a few hundred metric points; a few MB of logs).
-- **Total: about 5 THB.** I still need to confirm it on the billing page.
+- **Total: about 7 THB.** I still need to confirm it on the billing page.
 
 ---
 
 ## 10. Teardown
 
-See the end of the README section for the record (`reports/lab4/teardown.txt`).
+`make teardown LAB=4` at 07:30 UTC on 11 Oct (`reports/lab4/teardown.txt`):
+
+```
+deleted   Cloud Scheduler job itcs355-lab4-drift
+deleted   Cloud Run job itcs355-lab4-drift
+deleted   alert policy 'itcs355 input drift: PSI above 0.05'
+deleted   Cloud Run service itcs355-staging
+PASS  nothing found under these tags
+```
+
+- **The schedule is deleted first.** A scheduler left behind keeps starting a job that
+  reads logs from a service that no longer exists.
+- **Checked by hand afterwards:** 0 scheduler jobs, 0 Cloud Run jobs, no Lab 4 service.
+  (`scamshield` is my capstone, not this lab.)
+- **Kept on purpose, all free with no traffic:**
+  - the dashboard and the email channel
+  - the log-based metric and the custom metric descriptors
+  - the `gh-deployer` identity, which Lab 5's pipeline needs
+  - the images in Artifact Registry
+- **Staging can come back:** the next push to main that changes code will create a new
+  staging service through CD. It scales to zero, so it costs nothing until it is used.
+
+**I still need to check the billing page by hand.**

@@ -337,8 +337,15 @@ once, with nothing else changing. That is a broken sensor feed, not hotter machi
 - **A week unnoticed:** ~14 extra inspections, ~10 of them needless (~14,000 THB),
   plus 600k wrong readings waiting for the next retrain.
 
-**Teardown:** see `reports/lab4/teardown.txt`. Schedule first, then the job, the alert
-policy and the staging service.
+**An alert that closed itself:** an hour after the replay stopped, Cloud Monitoring
+emailed "recovered … missing data". Nothing was fixed; the detector had simply stopped
+seeing inputs. I added a second policy that pages when the detector has not scored a
+window for 20 minutes.
+
+**Teardown:** `make teardown LAB=4` deleted the schedule first, then the drift job, the
+alert policy and the staging service. `make cost-report LAB=4` passes. Record in
+`reports/lab4/teardown.txt`. I left the schedule running for a day before that, which
+cost ~2–3 THB. Total for the lab about 7 THB.
 
 ---
 
