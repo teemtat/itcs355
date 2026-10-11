@@ -345,7 +345,7 @@ window for 20 minutes.
 **Teardown:** `make teardown LAB=4` deleted the schedule first, then the drift job, the
 alert policy and the staging service. `make cost-report LAB=4` passes. Record in
 `reports/lab4/teardown.txt`. I left the schedule running for a day before that, which
-cost ~2–3 THB. Total for the lab about 7 THB.
+cost ~2–3 THB. The billing page shows Cloud Run ฿17.16 for the lab, 2.4× the ~7 THB I estimated from instance time. All of it was covered by credits, so I paid ฿0.
 
 ---
 
