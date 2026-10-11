@@ -16,3 +16,9 @@ scheduler jobs:
 run jobs:
 run services:
 scamshield	
+
+# again after merging PR #3 (CD recreated staging) — 2026-10-11T07:44:07Z
+  deleted   Cloud Run service itcs355-staging
+PASS  nothing found under these tags
+run services: scamshield 
+scheduler jobs: 0
