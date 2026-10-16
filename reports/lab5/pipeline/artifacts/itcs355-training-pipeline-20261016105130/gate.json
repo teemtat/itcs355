@@ -1,0 +1,21 @@
+{
+  "metric": "test_roc_auc",
+  "candidate": 0.8636977821560744,
+  "min_absolute": 0.8,
+  "min_improvement": 0.004,
+  "incumbent_source": {
+    "source": "registry",
+    "found": true,
+    "model": "itcs355-6688143",
+    "model_id": "8639412615249920000",
+    "version": "1",
+    "aliases": [
+      "default"
+    ],
+    "artifact_uri": "gs://itcs355-6688143/itcs355/lab2-registry/v1"
+  },
+  "incumbent": 0.8583979723753147,
+  "delta": 0.005299809780759723,
+  "decision": "pass",
+  "reason": "beats the incumbent by +0.0053"
+}

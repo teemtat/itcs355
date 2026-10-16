@@ -1,0 +1,21 @@
+{
+  "metric": "test_roc_auc",
+  "candidate": 0.857485703973896,
+  "min_absolute": 0.8,
+  "min_improvement": 0.004,
+  "incumbent_source": {
+    "source": "registry",
+    "found": true,
+    "model": "itcs355-6688143",
+    "model_id": "8639412615249920000",
+    "version": "3",
+    "aliases": [
+      "default"
+    ],
+    "artifact_uri": "gs://itcs355-6688143/itcs355/lab5-pipeline/itcs355-training-pipeline-20261016105130/model"
+  },
+  "incumbent": 0.8636977821560744,
+  "delta": -0.006212078182178393,
+  "decision": "fail",
+  "reason": "improvement -0.0062 is below the 0.004 margin, so not distinguishable from noise; not registering"
+}

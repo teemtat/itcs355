@@ -1,0 +1,17 @@
+{
+  "endpoint": "itcs355-staging",
+  "revision": "itcs355-staging-v3-1cpu-041639",
+  "url": "https://itcs355-staging-kqg2dtnvba-as.a.run.app",
+  "model_ref": "itcs355-6688143@3",
+  "smoke": {
+    "status": 200,
+    "body": {
+      "probability": 0.029882258023296228,
+      "model_version": "3"
+    },
+    "model_version": "3",
+    "request_id": "3746c158-2be9-4529-9ccc-781987c5e2be",
+    "server_timing": "app;dur=51.59, score;dur=40.13",
+    "latency_ms": 235.42
+  }
+}

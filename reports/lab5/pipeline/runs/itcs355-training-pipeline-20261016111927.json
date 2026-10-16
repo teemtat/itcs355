@@ -1,0 +1,59 @@
+{
+  "run": "projects/52907215794/locations/asia-southeast1/pipelineJobs/itcs355-training-pipeline-20261016111927",
+  "display_name": "itcs355-lab5-20261016-041926",
+  "state": "PIPELINE_STATE_SUCCEEDED",
+  "create": "2026-10-16T04:19:30.631203+00:00",
+  "start": "2026-10-16T04:19:31.818895+00:00",
+  "end": "2026-10-16T04:29:49.256783+00:00",
+  "service_account": "52907215794-compute@developer.gserviceaccount.com",
+  "schedule": "",
+  "params": {
+    "n_estimators": 10.0,
+    "max_depth": 2.0
+  },
+  "labels": {
+    "course": "itcs355",
+    "vertex-ai-pipelines-run-billing-id": "7817240700952510464",
+    "lab": "5",
+    "student": "itcs355-6688143"
+  },
+  "console": "https://console.cloud.google.com/vertex-ai/locations/asia-southeast1/pipelines/runs/itcs355-training-pipeline-20261016111927?project=52907215794",
+  "error": "",
+  "steps": [
+    {
+      "task": "ingest",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:19:32.642567+00:00",
+      "end": "2026-10-16T04:20:03.871464+00:00",
+      "error": ""
+    },
+    {
+      "task": "validate",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:20:04.290829+00:00",
+      "end": "2026-10-16T04:23:18.151895+00:00",
+      "error": ""
+    },
+    {
+      "task": "train",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:23:18.637460+00:00",
+      "end": "2026-10-16T04:28:46.737901+00:00",
+      "error": ""
+    },
+    {
+      "task": "evaluate",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:28:47.105153+00:00",
+      "end": "2026-10-16T04:29:48.811515+00:00",
+      "error": ""
+    },
+    {
+      "task": "condition-1",
+      "state": "NOT_TRIGGERED",
+      "start": "2026-10-16T04:29:49.152057+00:00",
+      "end": "2026-10-16T04:29:49.152057+00:00",
+      "error": ""
+    }
+  ]
+}
