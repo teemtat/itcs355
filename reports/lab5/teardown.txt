@@ -1,0 +1,71 @@
+# Vertex pipeline schedules deleted via REST (DELETE .../schedules/{id}) — 2026-10-16
+  deleted   Vertex pipeline schedule itcs355-lab5-retrain   (3067518694239240192, was ACTIVE)
+  deleted   Vertex pipeline schedule itcs355-lab5-fire-once (6067478996021411840, was COMPLETED)
+
+# make teardown LAB=5 — 2026-10-16 (first run, after the schedules)
+  deleted   Cloud Run service itcs355-staging
+  deleted   7253362484839448576 (JOB_STATE_FAILED)
+  deleted   6962880308874051584 (JOB_STATE_FAILED)
+  deleted   7940161428013449216 (JOB_STATE_FAILED)
+  deleted   2243107899389771776 (JOB_STATE_FAILED)
+  kept      17 × SUCCEEDED custom jobs (lineage); IDs listed under the re-run below
+
+# make teardown LAB=5 — re-run — 2026-10-16T06:09:20Z
+  kept      6954154584596021248 (SUCCEEDED — lineage)
+  kept      8859740176927162368 (SUCCEEDED — lineage)
+  kept      6611599537939152896 (SUCCEEDED — lineage)
+  kept      6001361788430450688 (SUCCEEDED — lineage)
+  kept      1491006761618898944 (SUCCEEDED — lineage)
+  kept      2342468566168633344 (SUCCEEDED — lineage)
+  kept      6664798308537466880 (SUCCEEDED — lineage)
+  kept      1867057330504335360 (SUCCEEDED — lineage)
+  kept      3677504380707274752 (SUCCEEDED — lineage)
+  kept      8340981794849423360 (SUCCEEDED — lineage)
+  kept      599294035399540736 (SUCCEEDED — lineage)
+  kept      7656716126465818624 (SUCCEEDED — lineage)
+  kept      3631061009550016512 (SUCCEEDED — lineage)
+  kept      1990906320257024000 (SUCCEEDED — lineage)
+  kept      2399889461417607168 (SUCCEEDED — lineage)
+  kept      6221193745241473024 (SUCCEEDED — lineage)
+  kept      2534997450238722048 (SUCCEEDED — lineage)
+
+# bash infra/gcp/iam-lab5.sh down — 2026-10-16
+  deleted service accounts itcs355-lab5-train, itcs355-lab5-serve, itcs355-lab5-ci (and their 12 bindings)
+
+# make cost-report LAB=5 — 2026-10-16T06:09:27Z
+searching for resources tagged {'course': 'itcs355', 'student': 'itcs355-6688143', 'lab': '5'}
+
+17 resource(s) deleted or still deleting:
+  kept      6954154584596021248 (SUCCEEDED — lineage)
+  kept      8859740176927162368 (SUCCEEDED — lineage)
+  kept      6611599537939152896 (SUCCEEDED — lineage)
+  kept      6001361788430450688 (SUCCEEDED — lineage)
+  kept      1491006761618898944 (SUCCEEDED — lineage)
+  kept      2342468566168633344 (SUCCEEDED — lineage)
+  kept      6664798308537466880 (SUCCEEDED — lineage)
+  kept      1867057330504335360 (SUCCEEDED — lineage)
+  kept      3677504380707274752 (SUCCEEDED — lineage)
+  kept      8340981794849423360 (SUCCEEDED — lineage)
+  kept      599294035399540736 (SUCCEEDED — lineage)
+  kept      7656716126465818624 (SUCCEEDED — lineage)
+  kept      3631061009550016512 (SUCCEEDED — lineage)
+  kept      1990906320257024000 (SUCCEEDED — lineage)
+  kept      2399889461417607168 (SUCCEEDED — lineage)
+  kept      6221193745241473024 (SUCCEEDED — lineage)
+  kept      2534997450238722048 (SUCCEEDED — lineage)
+
+Re-run in 24 hours. Then confirm in the console by hand and screenshot it — that screenshot is a Lab 5 deliverable.
+make: *** [cost-report] Error 1
+exit=2
+
+# checked by hand — 2026-10-16T06:09:33Z
+vertex schedules: {}
+running pipeline jobs: {}
+running/pending custom jobs: 0
+succeeded lab=5 custom jobs (kept): 17
+run services: scamshield 
+run jobs: 0
+scheduler jobs: 0
+vertex endpoints: 0
+compute instances: 0
+itcs355-lab5-* service accounts: 0

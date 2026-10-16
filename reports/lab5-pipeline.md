@@ -350,7 +350,9 @@ on 2026-10-16.
   the ceiling at created→end.
 - Wall clock per run: 26.5 min (first pass), 10 min (gate-fail), 7.8 min (scheduled).
 
-**Still alive** (left for the coordinator's teardown):
+**Still alive at the end of this task** (left for the coordinator's teardown):
+
+> **Torn down on 2026-10-16.** The schedules, staging and the lab5 service accounts are gone. Only the free SUCCEEDED job records are kept, for lineage. See [lab5-teardown.md](lab5-teardown.md).
 
 | Resource | Created | Notes |
 |---|---|---|
