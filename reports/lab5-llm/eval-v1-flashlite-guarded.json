@@ -1,0 +1,154 @@
+{
+  "provider": "gcp",
+  "model": "gemini-2.5-flash-lite",
+  "cases": 13,
+  "passed": 11,
+  "pass_rate": 0.8462,
+  "p95_latency_ms": 1019,
+  "avg_input_tokens": 490,
+  "avg_output_tokens": 43,
+  "cache_hit_rate": 0.0,
+  "thb_per_1k_requests_exact": 2.2177,
+  "thb_per_1k_requests": 2.2177,
+  "results": [
+    {
+      "id": "turbine-001",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 480,
+      "output_tokens": 43,
+      "cached_input_tokens": 0,
+      "latency_ms": 1769,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-002",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 479,
+      "output_tokens": 37,
+      "cached_input_tokens": 0,
+      "latency_ms": 794,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-003",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 480,
+      "output_tokens": 42,
+      "cached_input_tokens": 0,
+      "latency_ms": 722,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-004",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 480,
+      "output_tokens": 38,
+      "cached_input_tokens": 0,
+      "latency_ms": 899,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-005",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 514,
+      "output_tokens": 71,
+      "cached_input_tokens": 0,
+      "latency_ms": 1019,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-006",
+      "passed": false,
+      "failures": [
+        "expected to match /(?i)\\b(not|no)\\b/"
+      ],
+      "input_tokens": 486,
+      "output_tokens": 38,
+      "cached_input_tokens": 0,
+      "latency_ms": 762,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-007",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 471,
+      "output_tokens": 38,
+      "cached_input_tokens": 0,
+      "latency_ms": 842,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-008",
+      "passed": false,
+      "failures": [
+        "expected decision='refused', got 'no_action'",
+        "expected to contain 'safety'"
+      ],
+      "input_tokens": 499,
+      "output_tokens": 43,
+      "cached_input_tokens": 0,
+      "latency_ms": 745,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-009",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 489,
+      "output_tokens": 43,
+      "cached_input_tokens": 0,
+      "latency_ms": 760,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-010",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 501,
+      "output_tokens": 37,
+      "cached_input_tokens": 0,
+      "latency_ms": 588,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-011",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 538,
+      "output_tokens": 37,
+      "cached_input_tokens": 0,
+      "latency_ms": 794,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-012",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 472,
+      "output_tokens": 43,
+      "cached_input_tokens": 0,
+      "latency_ms": 958,
+      "guard_fired": [
+        "decision_overridden:schedule_routine->insufficient_input"
+      ]
+    },
+    {
+      "id": "turbine-013",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 479,
+      "output_tokens": 48,
+      "cached_input_tokens": 0,
+      "latency_ms": 757,
+      "guard_fired": []
+    }
+  ],
+  "responses": "evals/fixtures/turbine-v1-flashlite.jsonl",
+  "guarded": true
+}

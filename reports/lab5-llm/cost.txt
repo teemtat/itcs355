@@ -1,0 +1,44 @@
+Rates (THB per 1M tokens, 33.5 THB/USD, checked 2026-10-16)
+  gemini-2.5-flash                             input 10.05   output 83.75
+  gemini-2.5-flash-lite                        input 3.35   output 13.40
+
+1. THB per 1,000 requests — baseline v1 prompt, gemini-2.5-flash, thinking off, 13 recorded calls
+  measured mean input tokens                   489.8  -> 490
+  measured mean output tokens                  46.8  -> 47
+  input  cost per request                      490 x 10.05 / 1e6 = 0.004924 THB
+  output cost per request                      47 x 83.75 / 1e6 = 0.003936 THB
+  x 1,000 requests                             = 8.86 THB per 1,000 requests
+  for comparison, same golden set and prompt:
+  Flash-Lite (gate FAILED, 2 regressions)      490 in / 43 out -> 2.22 THB per 1,000
+  Flash, thinking left at default              490 in / 429 out -> 40.85 THB per 1,000
+  Flash, first-draft prompt v0                 189 in / 89 out -> 9.35 THB per 1,000
+
+2. What capping max_output_tokens saves
+  baseline output tokens, min / median / max   36 / 45 / 80
+  cap 64: measured                             45 out avg, 1 truncated, 8.69 THB per 1,000
+  cap 96: measured                             47 out avg, 0 truncated, 8.86 THB per 1,000
+  output_cap_saving(baseline mean 47, cap 96)  0.00 THB per 1,000  (cap above the mean)
+  worst case before: every answer hits 1024    90.68 THB per 1,000
+  output_cap_saving(worst case 1024, cap 96)   (1024 - 96) x 83.75 / 1e6 x 1000 = 77.72 THB per 1,000
+  length control vs first draft (89 -> 47 out) (89 - 47) x 83.75 / 1e6 x 1000 = 3.52 THB per 1,000
+  thinking_budget=0 vs default (429 -> 47 out) 31.99 THB per 1,000 saved, same 12/13 pass
+
+3. Prompt-cache break-even vs measured
+  cacheable prefix (system prompt, count_tokens) 405 tokens of 490 input
+  llmcost model: write x, read x               1.25 x, 0.1 x input rate
+  break-even = (W-1) / ((1-R) + (W-1))         (1.25-1) / ((1-0.1) + (1.25-1)) = 21.7%
+  measured hit rate (all recorded calls)       0 cached / 34295 input tokens over 78 calls = 0.0%
+  if every call hit (ceiling of the lever)     5.20 THB per 1,000 (saves 3.66)
+  Vertex explicit cache: storage per hour      405 x 1.00 USD/1M/h x 33.5 = 0.013567 THB/h
+    saving per hit                             405 x 10.05 x 0.9 / 1e6 = 0.003663 THB
+    break-even traffic                         3.7 requests per hour
+
+Vertex spend for this lab (every recorded call, at the rates above)
+  turbine-v0-flash                             13 calls, 2455 in / 1158 out = 0.1217 THB
+  turbine-v1-flash-cap64                       13 calls, 6368 in / 588 out = 0.1132 THB
+  turbine-v1-flash-cap96                       13 calls, 6368 in / 617 out = 0.1157 THB
+  turbine-v1-flash-thinking                    13 calls, 6368 in / 5580 out = 0.5313 THB
+  turbine-v1-flash                             13 calls, 6368 in / 608 out = 0.1149 THB
+  turbine-v1-flashlite                         13 calls, 6368 in / 558 out = 0.0288 THB
+  plus: 1 live attack call, 6 probe calls      < 0.01 THB
+  TOTAL                                        1.0256 THB (~3.1 US cents)
