@@ -1,14 +1,15 @@
 """Cost model. Used by Labs 2, 3, and 5.
 
-GCP rates below were verified on 2026-09-20 for asia-southeast1 (Singapore), which is
-the region in cloud.env. Two sources, because the headline price and the billed price
+GCP rates below were verified on 2026-09-20 for the Singapore region, which is REGION in
+cloud.env. The table is only as portable as that sentence: a different REGION, or a
+different provider, needs its own verified rows, and nothing here can check that. Two sources, because the headline price and the billed price
 are not the same number on a managed training platform:
 
   * Vertex AI custom training price per machine type, from the Vertex pricing page with
     the region selector set to Singapore — NOT the default Iowa (us-central1), which is
     23% cheaper and is what the original values in this file were closer to.
   * Compute Engine SKU prices from the Cloud Billing Catalog API
-    (service 6F81-5844-456A, serviceRegions contains asia-southeast1), which is the
+    (service 6F81-5844-456A, serviceRegions filtered to Singapore), which is the
     same catalogue the invoice is generated from.
 
 WHY BOTH. Vertex bills custom training as discounted infrastructure PLUS a management

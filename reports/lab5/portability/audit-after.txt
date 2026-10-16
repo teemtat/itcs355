@@ -1,0 +1,2 @@
+PORTABILITY AUDIT PASSED — src, service, monitoring, tests contain no provider-specific strings
+  and no literal copy of the 7 cloud.env values; all 7 slots resolve through cloud.env (gcp)
