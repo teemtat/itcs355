@@ -26,6 +26,10 @@ Two smaller leaks: model URIs in the GCP registry are `gs://` URIs, so a model r
 on GCP has to be re-uploaded before Azure can serve it. And the original swap check reused
 the primary's `BLOB_URI`, which handed `gs://…` to the Azure adapter. That is the "hidden
 in config" failure mode, and the import scan could never have caught it.
+A third leak showed up on the real run. The Azure for Students subscription has a policy that
+allows only five regions, and `southeastasia` is not one of them, so the first run was refused
+at storage creation (`RequestDisallowedByAzure`). It worked after I changed `AZURE_REGION` to
+`malaysiawest`. The region is a property of the *account*, not of the code.
 
 **Full migration: about 25 engineering days.** These three methods took about a day, and
 they were the easy three. Still to do: training jobs and registry on Azure ML (4.5 days);
@@ -85,9 +89,20 @@ loaded its model from Azurite *through `AzureAdapter.download`*, then:
 Full log: [swap-check-emulator.txt](lab5/portability/swap-check-emulator.txt). The
 emulator cannot show managed-identity auth, Container Apps ingress or real latency.
 
-**Real run: pending.** It needs an Azure for Students account, which I have to create.
-After that, `bash infra/azure/lab5-swap.sh demo` creates everything, runs
-`make swap-check SECOND=azure` into `reports/lab5/portability/swap-check-azure.txt`, and
-deletes the resource group, even if a step fails. Expect about 30 minutes and about
-6 THB (one day of registry Basic) on the student credit. Cleanup if interrupted:
-`bash infra/azure/lab5-swap.sh down`. The script has not yet been run against Azure.
+**Real run: done, 2026-10-16, on Azure for Students** (`bash infra/azure/lab5-swap.sh demo`;
+log in [`azure-demo-run.log`](lab5/portability/azure-demo-run.log), result in
+[`swap-check-azure.txt`](lab5/portability/swap-check-azure.txt)):
+
+```
+  [PASS            ] upload    https://itcs3556688143.blob.core.windows.net/itcs355/itcs355/portability/probe.txt
+  [PASS            ] download  26 bytes, identical
+  [PASS            ] invoke    p=0.039 model_version=1 1046 ms
+```
+
+The service was the same serving image Cloud Run runs, pushed to ACR and running on
+Container Apps in `malaysiawest`. It pulled the model from Blob through a user-assigned
+identity (shared keys disabled). The first attempt in `southeastasia` was refused by the
+subscription's region policy and cleaned itself up
+([`azure-demo-run1-region-denied.log`](lab5/portability/azure-demo-run1-region-denied.log)).
+After the run the script deleted the resource group. `az group list` is empty and
+`az resource list` returns 0. Clean-up if ever needed: `bash infra/azure/lab5-swap.sh down`.
