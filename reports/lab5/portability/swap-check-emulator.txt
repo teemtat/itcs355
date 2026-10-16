@@ -1,0 +1,21 @@
+$ bash infra/azure/emulator-demo.sh reports/registered-model.joblib   # 2026-10-16T03:06:56Z, commit 0747212 + working tree
+== Azurite (blob only)
+== container + model, through the adapter
+  uploaded http://127.0.0.1:10000/devstoreaccount1/itcs355/itcs355/models/itcs355/1/model.joblib
+== serving image swap-0747212 (linux/amd64, the image Cloud Run runs)
+  /ready -> {"status":"ready","model_version":"1"}
+  model load, from the container's own log:
+    {"ts":"2026-10-16 03:06:45,566","severity":"INFO","msg":{"event": "model_loaded", "model_version": "1", "model_uri": "http://itcs355-azurite:10000/devstoreaccount1/itcs355/itcs355/models/itcs355/1", "load_ms": 4036.7}}
+== swap-check
+primary   gcp    gs://itcs355-6688143/itcs355
+secondary azure  http://127.0.0.1:10000/devstoreaccount1/itcs355/itcs355
+
+  [PASS            ] upload    http://127.0.0.1:10000/devstoreaccount1/itcs355/itcs355/portability/probe.txt
+  [PASS            ] download  26 bytes, identical
+  [PASS            ] invoke    p=0.039 model_version=1 110 ms
+
+Write-up (Lab 5 Task 4), half a page:
+  - which method was hardest to port, and why
+  - one place the abstraction genuinely leaked and could not be hidden
+  - what a full migration would cost in engineering days
+  - was building this abstraction worth it? A well-argued 'no' scores full marks.
