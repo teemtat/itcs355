@@ -4,49 +4,89 @@
 # Pipelines, Azure ML Pipelines, or Vertex AI Pipelines. Keeping the DAG here rather than
 # in provider SDK calls is what makes the pipeline portable, and it is why every step is
 # a container rather than a function.
+#
+# The step logic lives in the image (pipeline/steps.py). A command here names a step and
+# its arguments, nothing more. Placeholders:
+#   {{run_id}}            this execution's id. Steps keep their data under BLOB_URI/lab5-pipeline/<run_id>/
+#   {{<parameter>}}       a run parameter from `parameters:` below
+#   {{outputs.<name>}}    where the step writes an output the DAG branches on
 
 name: itcs355-training-pipeline
-schedule: "0 2 * * 0"          # TODO(Lab 5): justify this in your README, or change it
+
+# Weekly, Monday 02:00 Bangkok time (Sunday 19:00 UTC). The original "0 2 * * 0" was
+# Sunday 02:00 UTC. Changed for two reasons:
+#   * The label is failed_within_7d, so a reading only has a label once it is seven days
+#     old. A week is the shortest interval in which a retrain sees a whole new week of
+#     labelled readings. Retraining daily would retrain six days out of seven on almost
+#     the same labelled data, and the gate would reject it as noise.
+#   * Monday 02:00 local is after the weekend's readings are in, before the maintenance
+#     shift starts at 07:00, and a run takes about 15 minutes. A run that fails leaves the
+#     whole working day to look at it. Sunday 02:00 UTC is 09:00 in Bangkok, in the middle
+#     of the weekend, when nobody is looking.
+# The timezone is in the cron itself. Without it Vertex reads the cron as UTC.
+schedule: "TZ=Asia/Bangkok 0 2 * * 1"
+
+parameters:
+  weeks: 3                  # weeks of readings to train on: the original fleet + 2 newer weeks
+  corrupt: none             # ingest fault injection for the validate demo: none | pressure_bar | temp_nulls
+  n_estimators: 100         # the Lab 2 choice (registered as version 1)
+  max_depth: 4
+  min_samples_leaf: 5
+  endpoint: itcs355-staging
+  serve_image: "${SERVE_IMAGE}"
 
 steps:
   - name: ingest
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/make_dataset.py"]
+    image: "${PIPELINE_IMAGE}"
+    command: ["python", "-m", "pipeline.steps", "ingest", "--run-id", "{{run_id}}",
+              "--weeks", "{{weeks}}", "--corrupt", "{{corrupt}}"]
     outputs: [raw_data]
 
   - name: validate
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["pytest", "-q", "tests/test_data.py"]
+    image: "${PIPELINE_IMAGE}"
+    command: ["python", "-m", "pipeline.steps", "validate", "--run-id", "{{run_id}}"]
     depends_on: [ingest]
     on_failure: abort
     # Aborting here is the point. A pipeline that trains on data failing its own contract
     # produces a model nobody should trust, and it will do so silently.
 
   - name: train
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "-m", "src.train", "--metrics-out", "/outputs/metrics.json"]
+    image: "${PIPELINE_IMAGE}"
+    command: ["python", "-m", "pipeline.steps", "train", "--run-id", "{{run_id}}",
+              "--n-estimators", "{{n_estimators}}", "--max-depth", "{{max_depth}}",
+              "--min-samples-leaf", "{{min_samples_leaf}}"]
     depends_on: [validate]
     instance: "${TRAIN_INSTANCE}"
     spot: true
+    retries: 2
+    # Spot, and retried rather than checkpointed. A fit takes seconds: a reclaimed
+    # machine loses less work than writing a checkpoint would cost, so the retry is the
+    # checkpoint.
     outputs: [model, metrics]
 
   - name: evaluate
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/evaluation_gate.py", "--metrics", "/outputs/metrics.json"]
+    image: "${PIPELINE_IMAGE}"
+    command: ["python", "-m", "pipeline.steps", "evaluate", "--run-id", "{{run_id}}",
+              "--decision-out", "{{outputs.gate_decision}}"]
     depends_on: [train]
     outputs: [gate_decision]
+    # The step runs scripts/evaluation_gate.py, which compares against the registry's
+    # production version by a measured margin. Exit 1 there becomes "fail" here.
 
   - name: register
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/register.py"]
+    image: "${PIPELINE_IMAGE}"
+    command: ["python", "-m", "pipeline.steps", "register", "--run-id", "{{run_id}}"]
     depends_on: [evaluate]
     condition: "gate_decision == 'pass'"
-    # TODO(Lab 5): a pipeline that registers unconditionally has no gate. The condition
-    # must be real, and the grader will try to make it fail.
+    # The condition is compiled into the provider's branch (dsl.If on Vertex). On "fail",
+    # register and deploy_staging are skipped, not run and told to do nothing. The step
+    # also re-reads the gate's decision and refuses on anything but "pass", so a DAG
+    # edited to drop the condition still cannot register a rejected model.
 
   - name: deploy_staging
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/deploy.py", "--target", "staging"]
+    image: "${PIPELINE_IMAGE}"
+    command: ["python", "-m", "pipeline.steps", "deploy", "--run-id", "{{run_id}}",
+              "--endpoint", "{{endpoint}}", "--serve-image", "{{serve_image}}"]
     depends_on: [register]
 
 tags:
