@@ -152,6 +152,9 @@ def build_kfp(spec: dict[str, Any], cfg) -> Any:
                 op, display_name=f"itcs355-lab5-{step['name']}",
                 machine_type=step.get("instance", "n1-standard-4"),
                 strategy="SPOT" if step.get("spot") else "STANDARD",
+                # The first run queued 12 minutes for spot capacity. The default wait is a
+                # day, during which the run looks alive and is not; an hour, then fail.
+                max_wait_duration="3600s",
                 boot_disk_type="pd-standard", boot_disk_size_gb=100,
                 labels=labels,
                 env=[{"name": k, "value": v} for k, v in
@@ -196,7 +199,12 @@ def build_kfp(spec: dict[str, Any], cfg) -> Any:
                                                 name=f"{out}-{value}"))
                 open_conds = conds
             op, inputs = built[step["name"]]
-            task = op(**{n: (run_id if n == "run_id" else kwargs[n]) for n in inputs})
+            # The run id placeholder is only substituted in a plain container task. Inside
+            # the custom-job wrapper (train) it arrives as the literal text, so every step
+            # after the one that emits run_id takes the resolved value from its output.
+            rid = (tasks[producers["run_id"]].outputs["run_id"]
+                   if "run_id" in producers and producers["run_id"] in tasks else run_id)
+            task = op(**{n: (rid if n == "run_id" else kwargs[n]) for n in inputs})
             task.set_display_name(step["name"])
             task.set_caching_options(False)
             for dep in step.get("depends_on", []):

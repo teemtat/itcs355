@@ -106,6 +106,9 @@ def ingest(args) -> int:
         "corruption": CORRUPTIONS[args.corrupt], "fingerprint": data.data_fingerprint(out),
     })
     print(f"ingested {len(df)} rows ({args.weeks} week(s)), corruption: {CORRUPTIONS[args.corrupt]}")
+    if args.run_id_out:
+        Path(args.run_id_out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.run_id_out).write_text(args.run_id)
     return 0
 
 
@@ -297,6 +300,7 @@ def main() -> int:
     p = step("ingest")
     p.add_argument("--weeks", type=int, default=1)
     p.add_argument("--corrupt", default="none", choices=sorted(CORRUPTIONS))
+    p.add_argument("--run-id-out", default=None)
     step("validate")
     p = step("train")
     p.add_argument("--n-estimators", type=int, default=100)

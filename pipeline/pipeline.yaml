@@ -39,8 +39,12 @@ steps:
   - name: ingest
     image: "${PIPELINE_IMAGE}"
     command: ["python", "-m", "pipeline.steps", "ingest", "--run-id", "{{run_id}}",
-              "--weeks", "{{weeks}}", "--corrupt", "{{corrupt}}"]
-    outputs: [raw_data]
+              "--weeks", "{{weeks}}", "--corrupt", "{{corrupt}}",
+              "--run-id-out", "{{outputs.run_id}}"]
+    outputs: [raw_data, run_id]
+    # run_id goes out as an output because a placeholder is not substituted inside every
+    # kind of step (Vertex leaves it literal in the spot custom job). Later steps read it
+    # from here, which also makes every step's data dependency on ingest explicit.
 
   - name: validate
     image: "${PIPELINE_IMAGE}"
