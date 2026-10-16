@@ -20,10 +20,11 @@ name: itcs355-training-pipeline
 #     labelled readings. Retraining daily would retrain six days out of seven on almost
 #     the same labelled data, and the gate would reject it as noise.
 #   * Monday 02:00 local is after the weekend's readings are in, before the maintenance
-#     shift starts at 07:00, and a run takes about 15 minutes. A run that fails leaves the
+#     shift starts at 07:00, and a run takes about 25 minutes. A run that fails leaves the
 #     whole working day to look at it. Sunday 02:00 UTC is 09:00 in Bangkok, in the middle
 #     of the weekend, when nobody is looking.
-# The timezone is in the cron itself. Without it Vertex reads the cron as UTC.
+# The timezone is in the cron itself (an IANA name: Vertex rejects "TZ=UTC"). Without it
+# Vertex reads the cron as UTC.
 schedule: "TZ=Asia/Bangkok 0 2 * * 1"
 
 parameters:

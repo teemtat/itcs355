@@ -1,0 +1,20 @@
+{
+  "name": "projects/52907215794/locations/asia-southeast1/schedules/3067518694239240192",
+  "display_name": "itcs355-lab5-retrain",
+  "cron": "TZ=Asia/Bangkok 0 2 * * 1",
+  "state": "ACTIVE",
+  "started_runs": 0,
+  "next_run": "2026-10-18T19:00:00+00:00",
+  "last_run": null,
+  "service_account": ""
+}
+{
+  "name": "projects/52907215794/locations/asia-southeast1/schedules/6067478996021411840",
+  "display_name": "itcs355-lab5-fire-once",
+  "cron": "25 4 * * *",
+  "state": "COMPLETED",
+  "started_runs": 1,
+  "next_run": "2026-10-17T04:25:00+00:00",
+  "last_run": "OK",
+  "service_account": ""
+}

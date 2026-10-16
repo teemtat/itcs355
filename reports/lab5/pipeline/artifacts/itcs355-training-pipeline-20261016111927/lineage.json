@@ -1,0 +1,19 @@
+{
+  "pipeline_run": "itcs355-training-pipeline-20261016111927",
+  "git_commit": "db08418ef3501ebaee7ddf1c03b996af55dd9682",
+  "image": "asia-southeast1-docker.pkg.dev/itcs355-6688143/itcs355/itcs355-pipeline@sha256:e6bcdd12aefac34e72532766940b445706d88bbfeb9afc9afa6c81537199d3f5",
+  "data_fingerprint": "6e47dbe672a9b097",
+  "data_uri": "gs://itcs355-6688143/itcs355/lab5-pipeline/itcs355-training-pipeline-20261016111927/data/raw/sensors.csv",
+  "seed": 20260101,
+  "params": {
+    "n_estimators": 10,
+    "max_depth": 2,
+    "min_samples_leaf": 5
+  },
+  "metrics": {
+    "val_roc_auc": 0.8375752248353178,
+    "val_pr_auc": 0.3871265615785168,
+    "test_roc_auc": 0.857485703973896,
+    "test_pr_auc": 0.46857184586500356
+  }
+}

@@ -527,7 +527,9 @@ def main() -> int:
         params = _params(args.param, spec)
         if args.once_in:
             at = datetime.now(timezone.utc) + timedelta(minutes=args.once_in)
-            cron = f"TZ=UTC {at.minute} {at.hour} {at.day} {at.month} *"
+            # Vertex refuses a cron pinned to a day and month; daily at that minute with
+            # max_run_count=1 fires once and then completes.
+            cron = f"{at.minute} {at.hour} * * *"   # no TZ prefix: Vertex reads UTC
             schedule_gcp(cfg, template, cron, params, f"{SCHEDULE_PREFIX}fire-once", max_runs=1)
         else:
             schedule_gcp(cfg, template, spec["schedule"], params, f"{SCHEDULE_PREFIX}retrain")

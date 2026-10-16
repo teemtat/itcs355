@@ -1,0 +1,58 @@
+{
+  "run": "projects/52907215794/locations/asia-southeast1/pipelineJobs/itcs355-training-pipeline-20261016105148",
+  "display_name": "itcs355-lab5-20261016-035147",
+  "state": "PIPELINE_STATE_FAILED",
+  "create": "2026-10-16T03:51:51.251424+00:00",
+  "start": "2026-10-16T03:51:52.427839+00:00",
+  "end": "2026-10-16T03:58:52.720463+00:00",
+  "service_account": "52907215794-compute@developer.gserviceaccount.com",
+  "schedule": "",
+  "params": {
+    "corrupt": "pressure_bar"
+  },
+  "labels": {
+    "course": "itcs355",
+    "vertex-ai-pipelines-run-billing-id": "7832158874718175232",
+    "student": "itcs355-6688143",
+    "lab": "5"
+  },
+  "console": "https://console.cloud.google.com/vertex-ai/locations/asia-southeast1/pipelines/runs/itcs355-training-pipeline-20261016105148?project=52907215794",
+  "error": " The DAG failed because some tasks failed. The failed tasks are: [validate].; Job (project_id = itcs355-6688143, job_id = 7832158874718175232) is failed due to the above error.; Failed to handle the job: {project_number = 52907215794, job_id = 7832158874718175232}",
+  "steps": [
+    {
+      "task": "ingest",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T03:51:53.246526+00:00",
+      "end": "2026-10-16T03:54:57.138185+00:00",
+      "error": ""
+    },
+    {
+      "task": "validate",
+      "state": "FAILED",
+      "start": "2026-10-16T03:54:57.498101+00:00",
+      "end": "2026-10-16T03:58:52.386044+00:00",
+      "error": "The replica workerpool0-0 exited with a non-zero status of 1. To find out more about why your job exited please check the logs: https://console.cloud.google.com/logs/viewer?project=52907215794&resource=ml_job%2Fjob_id%2F7253362484839448576&advancedFilter=resource.type%3D%22ml_job%22%0Aresource.labels.job_id%3D%227253362484839448576%22"
+    },
+    {
+      "task": "condition-1",
+      "state": "NOT_TRIGGERED",
+      "start": null,
+      "end": "2026-10-16T03:58:52.462238+00:00",
+      "error": ""
+    },
+    {
+      "task": "evaluate",
+      "state": "NOT_TRIGGERED",
+      "start": null,
+      "end": "2026-10-16T03:58:52.445396+00:00",
+      "error": ""
+    },
+    {
+      "task": "train",
+      "state": "NOT_TRIGGERED",
+      "start": null,
+      "end": "2026-10-16T03:58:52.423059+00:00",
+      "error": ""
+    }
+  ]
+}

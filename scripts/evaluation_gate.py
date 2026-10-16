@@ -124,8 +124,10 @@ def main() -> int:
     report.update(incumbent=incumbent, delta=delta)
     print(f"incumbent {incumbent:.4f}  delta {delta:+.4f}  required {MIN_IMPROVEMENT:+.4f}")
     if delta < MIN_IMPROVEMENT:
-        return decide("fail", f"improvement {delta:+.4f} is below the {MIN_IMPROVEMENT} "
-                              "margin, so not distinguishable from noise; not registering")
+        why = ("worse than the incumbent" if delta < 0
+               else "an improvement too small to tell from noise")
+        return decide("fail", f"delta {delta:+.4f} is below the +{MIN_IMPROVEMENT} margin "
+                              f"({why}); not registering")
     return decide("pass", f"beats the incumbent by {delta:+.4f}")
 
 

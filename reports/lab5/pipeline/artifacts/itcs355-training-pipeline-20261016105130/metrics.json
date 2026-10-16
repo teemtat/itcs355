@@ -1,0 +1,9 @@
+{
+  "seed": 20260101,
+  "data_fingerprint": "6e47dbe672a9b097",
+  "dvc_md5": "f8185ed7755c7403afcfd46703abb53e.dir",
+  "val_roc_auc": 0.8472296941058103,
+  "val_pr_auc": 0.4068858736165212,
+  "test_roc_auc": 0.8636977821560744,
+  "test_pr_auc": 0.48803632411370296
+}
