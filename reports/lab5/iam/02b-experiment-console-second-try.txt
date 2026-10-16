@@ -1,0 +1,2 @@
+A. training identity, storage.objects.list on itcs355/data/
+  attempt 1: fail

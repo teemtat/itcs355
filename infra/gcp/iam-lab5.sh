@@ -58,7 +58,19 @@ cond() {
   printf 'title: %s\nexpression: >-\n  %s\n' "$1" "$2" > "$f"; echo "$f"
 }
 obj() { echo "resource.name.startsWith(\"projects/_/buckets/$BUCKET/objects/$1\")"; }
-lst() { echo "api.getAttribute(\"storage.googleapis.com/objectListPrefix\", \"\").startsWith(\"$1\")"; }
+# A "directory": the prefix itself as an object name, and everything under it. rsync and
+# GCS FUSE first GET the bare name (e.g. itcs355/data, no slash) to ask "object or
+# prefix?"; a 403 there, unlike a 404, aborts them. Found by the baseline run, see
+# reports/lab5/iam/A0-baseline-condition-too-tight.log.
+dir() { local d="${1%/}"; echo "resource.name == \"projects/_/buckets/$BUCKET/objects/$d\" || $(obj "$d/")"; }
+# gcloud lists with the prefix minus its slash (prefix=itcs355/data&delimiter=/), so the
+# bare name must be admitted too. It also matches names that merely start with "data"
+# (itcs355/data-old/...), but only their names: get is still scoped by dir().
+# Found on the second baseline run, see reports/lab5/iam/A1-list-prefix-probe.log.
+lst() {
+  local a='api.getAttribute("storage.googleapis.com/objectListPrefix", "")' d="${1%/}"
+  echo "$a == \"$d\" || $a.startsWith(\"$d/\")"
+}
 
 serve_expr() {
   local e="" p
@@ -69,9 +81,9 @@ serve_expr() {
 # Every grant, once, as data: kind;member;role;target;condition-title;expression
 grants() {
   cat <<EOF
-bucket;$TRAIN;roles/storage.objectViewer;$BUCKET;lab5-train-read-data;$(obj "$DATA_PREFIX")
+bucket;$TRAIN;roles/storage.objectViewer;$BUCKET;lab5-train-read-data;$(dir "$DATA_PREFIX")
 bucket;$TRAIN;roles/storage.objectViewer;$BUCKET;lab5-train-list-data;$(lst "$DATA_PREFIX")
-bucket;$TRAIN;roles/storage.objectUser;$BUCKET;lab5-train-write-work;$(obj "$WORK_PREFIX") || $(lst "$WORK_PREFIX")
+bucket;$TRAIN;roles/storage.objectUser;$BUCKET;lab5-train-write-work;$(dir "$WORK_PREFIX") || $(lst "$WORK_PREFIX")
 project;$TRAIN;roles/aiplatform.user;$PROJECT_ID;;
 sa;$TRAIN;roles/iam.serviceAccountUser;$TRAIN;;
 bucket;$SERVE;roles/storage.objectViewer;$BUCKET;lab5-serve-read-model;$(serve_expr)

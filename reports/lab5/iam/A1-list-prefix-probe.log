@@ -1,0 +1,16 @@
+### 2026-10-16T03:11:12Z as itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+$ gcloud storage ls gs://itcs355-6688143/itcs355/data/
+ERROR: (gcloud.storage.ls) [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com] does not have permission to access b instance [itcs355-6688143] (or it may not exist): itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com does not have storage.objects.list access to the Google Cloud Storage bucket. Permission 'storage.objects.list' denied on resource '//storage.googleapis.com/projects/_/buckets/itcs355-6688143' (or it may not exist). This command is authenticated as teemtat.wee@gmail.com which is the active account specified by the [core/account] property. Impersonation is used to impersonate itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com.
+[exit ]
+### 2026-10-16T03:11:14Z as itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+$ gcloud storage ls gs://itcs355-6688143/itcs355/data/raw/sensors.csv
+gs://itcs355-6688143/itcs355/data/raw/sensors.csv
+[exit ]
+### rsync with verbosity (request prefixes)
+uri: https://oauth2.googleapis.com/token
+uri: https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com:generateAccessToken
+uri: https://storage.googleapis.com/storage/v1/b/itcs355-6688143/o/itcs355%2Fdata?alt=json&fields=bucket%2Cname%2Csize%2Cgeneration&projection=noAcl
+        "reason": "notFound"
+uri: https://storage.googleapis.com/storage/v1/b/itcs355-6688143/o?alt=json&fields=prefixes%2Citems%2Fname%2Citems%2Fsize%2Citems%2Fgeneration%2CnextPageToken&delimiter=%2F&maxResults=1000&prefix=itcs355%2Fdata&projection=noAcl
+        "reason": "forbidden"
+ERROR: (gcloud.storage.rsync) [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com] does not have permission to access b instance [itcs355-6688143] (or it may not exist): itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com does not have storage.objects.list access to the Google Cloud Storage bucket. Permission 'storage.objects.list' denied on resource '//storage.googleapis.com/projects/_/buckets/itcs355-6688143' (or it may not exist). This command is authenticated as teemtat.wee@gmail.com which is the active account specified by the [core/account] property. Impersonation is used to impersonate itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com.
