@@ -55,3 +55,23 @@ treated as data), and **insufficient input** (the right answer is "I cannot answ
 
 A golden set that has never failed has not been tested. Break something on purpose and
 confirm the gate catches it before you trust it.
+
+## This system's set — turbine maintenance triage (Lab 5 Part B)
+
+```
+golden/turbine.jsonl           13 cases: routine, grounding, guardrail, injection, insufficient input
+prompts/turbine-v0.txt         first-draft prompt (5/13 — kept as the evidence of failure)
+prompts/turbine-v1.txt         hardened prompt, the baseline (12/13)
+fixtures/turbine-*.jsonl       real Gemini responses on Vertex AI, usage from usage_metadata
+fixtures/turbine-*.meta.json   model, region, prompt hash, params, date for each fixture
+```
+
+```bash
+make llm-turbine-eval   # baseline
+make llm-turbine-gate   # Flash-Lite vs baseline — fails, 2 regressions
+make llm-cap-gate       # max_output_tokens=96 vs baseline — passes
+make llm-attack         # Task 8 guardrail demonstration
+make llm-cost           # Task 9 working
+```
+
+Write-up: `reports/lab5-llm.md`.

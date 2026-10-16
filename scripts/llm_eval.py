@@ -29,7 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src import llmcost  # noqa: E402
+from src import llmcost, llmguard  # noqa: E402
+import scripts.llm_prices  # noqa: E402,F401  registers the Vertex model rates
 
 DEFAULT_GOLDEN = ROOT / "evals" / "golden" / "triage.jsonl"
 DEFAULT_RESPONSES = ROOT / "evals" / "fixtures" / "triage-baseline.jsonl"
@@ -92,7 +93,10 @@ def check_one(check: dict, response: str) -> tuple[bool, str]:
     raise SystemExit(f"unknown check type {kind!r} in the golden set")
 
 
-def score(golden: list[dict], responses: list[dict]) -> list[dict]:
+def score(golden: list[dict], responses: list[dict], guard_canary: str | None = None,
+          use_guard: bool = False) -> list[dict]:
+    """With use_guard, each response passes through src/llmguard.py before it is checked,
+    which is what production would serve. The controls that fired are kept per case."""
     by_id = {r["id"]: r for r in responses}
     results = []
     for case in golden:
@@ -102,6 +106,9 @@ def score(golden: list[dict], responses: list[dict]) -> list[dict]:
             results.append({"id": cid, "passed": False, "failures": ["no response recorded"]})
             continue
         text = got.get("response", "")
+        fired: list[str] = []
+        if use_guard:
+            text, fired = llmguard.guard(text, llmguard.parse_record(case["prompt"]), guard_canary)
         failures = [why for check in case.get("checks", [])
                     for ok, why in [check_one(check, text)] if not ok]
         results.append({
@@ -110,7 +117,9 @@ def score(golden: list[dict], responses: list[dict]) -> list[dict]:
             "failures": failures,
             "input_tokens": got.get("input_tokens", 0),
             "output_tokens": got.get("output_tokens", 0),
+            "cached_input_tokens": got.get("cached_input_tokens", 0),
             "latency_ms": got.get("latency_ms", 0),
+            **({"guard_fired": fired} if use_guard else {}),
         })
     return results
 
@@ -128,9 +137,11 @@ def summarise(results: list[dict], provider: str, model: str) -> dict:
     passed = sum(1 for r in results if r["passed"])
     in_tok = sum(r.get("input_tokens", 0) for r in results)
     out_tok = sum(r.get("output_tokens", 0) for r in results)
+    cached = sum(r.get("cached_input_tokens", 0) for r in results)
     avg = llmcost.Usage(
         input_tokens=round(in_tok / total) if total else 0,
         output_tokens=round(out_tok / total) if total else 0,
+        cached_input_tokens=round(cached / total) if total else 0,
     )
     return {
         "provider": provider,
@@ -141,6 +152,8 @@ def summarise(results: list[dict], provider: str, model: str) -> dict:
         "p95_latency_ms": percentile([r.get("latency_ms", 0) for r in results], 95),
         "avg_input_tokens": avg.input_tokens,
         "avg_output_tokens": avg.output_tokens,
+        "cache_hit_rate": round(cached / in_tok, 4) if in_tok else 0.0,
+        "thb_per_1k_requests_exact": llmcost.cost_per_1k_requests(provider, model, avg),
         "thb_per_1k_requests": round(llmcost.cost_per_1k_requests(provider, model, avg), 4),
         "results": results,
     }
@@ -177,24 +190,36 @@ def main() -> int:
     ap.add_argument("--live", action="store_true",
                     help="generate responses through cloudlayer instead of a fixture")
     ap.add_argument("--provider", default="gcp")
-    ap.add_argument("--model", default="small")
+    ap.add_argument("--model", help="price table key; default: the fixture's .meta.json model, "
+                    "else 'small'")
+    ap.add_argument("--prompt", type=Path, help="system instruction file, for --live")
+    ap.add_argument("--guard", action="store_true",
+                    help="pass every response through src/llmguard.py before checking it")
+    ap.add_argument("--canary", default="TRIAGE-POLICY-K7Q",
+                    help="string from the instructions that must never reach the output")
     ap.add_argument("--out", type=Path, default=ROOT / "reports" / "llm_eval.json")
     ap.add_argument("--baseline", type=Path,
                     help="a previous report; fail if any case regresses against it")
     args = ap.parse_args()
 
     golden = read_jsonl(args.golden)
+    meta_path = args.responses.with_suffix(".meta.json")
+    meta = json.loads(meta_path.read_text()) if meta_path.exists() and not args.live else {}
+    model = args.model or meta.get("params", {}).get("model", "small")
     if args.live:
-        responses = generate_live(golden)
+        responses = generate_live(golden, args.prompt, model)
     else:
         responses = read_jsonl(args.responses)
 
-    report = summarise(score(golden, responses), args.provider, args.model)
+    report = summarise(score(golden, responses, args.canary, args.guard), args.provider, model)
+    report["responses"] = shown(args.responses) if not args.live else "live"
+    report["guarded"] = args.guard
 
     print(f"golden set  {args.golden.name}  ({report['cases']} cases)")
     for r in report["results"]:
         mark = "PASS" if r["passed"] else "FAIL"
-        print(f"  [{mark}] {r['id']}")
+        fired = r.get("guard_fired")
+        print(f"  [{mark}] {r['id']}" + (f"   GUARD FIRED: {'; '.join(fired)}" if fired else ""))
         for why in r["failures"]:
             print(f"         {why}")
     print(f"\npass rate           {report['passed']}/{report['cases']}"
@@ -212,22 +237,23 @@ def main() -> int:
     return 0
 
 
-def generate_live(golden: list[dict]) -> list[dict]:
-    """TODO(Lab 5): route each prompt through your adapter's `generate`.
+def generate_live(golden: list[dict], prompt: Path | None, model: str) -> list[dict]:
+    """Route each prompt through cloudlayer/llm_vertex.py. Spends tokens: one call per case.
 
-    Record input_tokens, output_tokens and latency_ms from the provider's own usage
-    fields — do not estimate them by counting words. Every provider tokenises
-    differently, and an estimated token count in a cost report is a fabricated number.
+    input_tokens, output_tokens and latency_ms come from the provider's own usage fields,
+    never from counting words. To keep a run, use scripts/llm_record.py instead, which
+    writes a fixture and its provenance.
     """
-    from src import config
-    from cloudlayer.factory import get_adapter
+    from cloudlayer.llm_vertex import generate
 
-    adapter = get_adapter(config.load())
-    rows = []
-    for case in golden:
-        result = adapter.generate(case["prompt"], {"max_output_tokens": 200})
-        rows.append({"id": case["id"], **result})
-    return rows
+    if prompt is None:
+        raise SystemExit("--live needs --prompt (the system instruction file)")
+    if model not in scripts.llm_prices.USD_PER_M:
+        raise SystemExit(f"--live needs --model, one of {sorted(scripts.llm_prices.USD_PER_M)}")
+    system = prompt.read_text()
+    params = {"model": model, "max_output_tokens": 1024, "thinking_budget": 0}
+    return [{"id": case["id"], **generate(case["prompt"], params, system=system)}
+            for case in golden]
 
 
 if __name__ == "__main__":

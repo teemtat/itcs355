@@ -1,0 +1,19 @@
+{
+  "recorded_at": "2026-10-16T03:03:18+00:00",
+  "golden": "evals/golden/turbine.jsonl",
+  "prompt_file": "evals/prompts/turbine-v0.txt",
+  "prompt_sha256": "3efbec3bd348388c",
+  "params": {
+    "model": "gemini-2.5-flash",
+    "temperature": 0.0,
+    "max_output_tokens": 1024,
+    "thinking_budget": 0,
+    "json": true
+  },
+  "location": "asia-southeast1",
+  "model_version": "gemini-2.5-flash",
+  "calls": 13,
+  "input_tokens": 2455,
+  "output_tokens": 1158,
+  "note": "meta written after the run (the recorder crashed on a path bug after saving the fixture); no extra calls made"
+}

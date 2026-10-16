@@ -1,0 +1,6 @@
+{
+  "prompt_file": "evals/prompts/turbine-v1.txt",
+  "model": "gemini-2.5-flash",
+  "system_prompt_tokens": 405,
+  "source": "Vertex count_tokens, 2026-10-16"
+}
