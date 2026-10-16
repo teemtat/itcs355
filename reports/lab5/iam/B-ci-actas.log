@@ -1,0 +1,99 @@
+== REMOVE actAs on itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com for itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+### 2026-10-16T03:14:07Z  as teemtat.wee@gmail.com
+$ bash infra/gcp/iam-lab5.sh revoke roles/iam.serviceAccountUser;itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com
+  remove sa itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountUser  itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for serviceAccount [itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com].
+[exit 0]
+
+### 2026-10-16T03:14:13Z  as itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+$ deploy_probe
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+Deploying container to Cloud Run service [itcs355-lab5-iamprobe] in project [itcs355-6688143] region [asia-southeast1]
+Deploying new service...
+Creating Revision...........................................................................done
+Routing traffic.....done
+Done.
+Service [itcs355-lab5-iamprobe] revision [itcs355-lab5-iamprobe-00001-cpb] has been deployed and is serving 100 percent of traffic.
+Service URL: https://itcs355-lab5-iamprobe-52907215794.asia-southeast1.run.app
+Proxy locally with: gcloud run services proxy itcs355-lab5-iamprobe --region asia-southeast1 --project itcs355-6688143
+[exit 0]
+
+### 2026-10-16T03:14:56Z  as itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+$ deploy_probe
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+Deploying container to Cloud Run service [itcs355-lab5-iamprobe] in project [itcs355-6688143] region [asia-southeast1]
+Deploying...
+Setting IAM Policy...............warning
+Creating Revision......................................................................................done
+Routing traffic.....done
+Completed with warnings:
+  Setting IAM policy failed, try "gcloud beta run services remove-iam-policy-binding --region=asia-southeast1 --member=allUsers --role=roles/run.invoker itcs355-lab5-iamprobe"
+Service [itcs355-lab5-iamprobe] revision [itcs355-lab5-iamprobe-00002-mwl] has been deployed and is serving 100 percent of traffic.
+Service URL: https://itcs355-lab5-iamprobe-52907215794.asia-southeast1.run.app
+Proxy locally with: gcloud run services proxy itcs355-lab5-iamprobe --region asia-southeast1 --project itcs355-6688143
+[exit 0]
+
+### 2026-10-16T03:15:41Z  as itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+$ deploy_probe
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+Deploying container to Cloud Run service [itcs355-lab5-iamprobe] in project [itcs355-6688143] region [asia-southeast1]
+Deploying...
+failed
+Deployment failed
+ERROR: (gcloud.run.deploy) PERMISSION_DENIED: Permission 'iam.serviceaccounts.actAs' denied on service account itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com (or it may not exist). This command is authenticated as teemtat.wee@gmail.com which is the active account specified by the [core/account] property. Impersonation is used to impersonate itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com.
+[exit 1]
+
+== RESTORE
+### 2026-10-16T03:15:49Z  as teemtat.wee@gmail.com
+$ bash infra/gcp/iam-lab5.sh grant roles/iam.serviceAccountUser;itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com
+  add sa itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountUser  itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for serviceAccount [itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com].
+[exit 0]
+
+### 2026-10-16T03:15:55Z  as itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+$ deploy_probe
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+Deploying container to Cloud Run service [itcs355-lab5-iamprobe] in project [itcs355-6688143] region [asia-southeast1]
+Deploying...
+Setting IAM Policy.............warning
+Creating Revision.....................................................done
+Routing traffic.....done
+Completed with warnings:
+  Setting IAM policy failed, try "gcloud beta run services remove-iam-policy-binding --region=asia-southeast1 --member=allUsers --role=roles/run.invoker itcs355-lab5-iamprobe"
+Service [itcs355-lab5-iamprobe] revision [itcs355-lab5-iamprobe-00003-xn9] has been deployed and is serving 100 percent of traffic.
+Service URL: https://itcs355-lab5-iamprobe-52907215794.asia-southeast1.run.app
+Proxy locally with: gcloud run services proxy itcs355-lab5-iamprobe --region asia-southeast1 --project itcs355-6688143
+[exit 0]
+
+== which identity the revision runs as
+### 2026-10-16T03:16:07Z  as teemtat.wee@gmail.com
+$ gcloud run services describe itcs355-lab5-iamprobe --project itcs355-6688143 --region asia-southeast1 --format=value(spec.template.spec.serviceAccountName)
+itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com
+[exit 0]
+
+== its stdout reached Cloud Logging, though the serving SA holds no logging role
+### 2026-10-16T03:16:29Z  as teemtat.wee@gmail.com
+$ gcloud logging read --project itcs355-6688143 --freshness=30m --limit=5 resource.type=cloud_run_revision AND resource.labels.service_name=itcs355-lab5-iamprobe --format=value(timestamp,logName,textPayload)
+2026-10-16T03:16:06.766323Z	projects/itcs355-6688143/logs/cloudaudit.googleapis.com%2Fsystem_event	
+2026-10-16T03:16:05.252972Z	projects/itcs355-6688143/logs/cloudaudit.googleapis.com%2Fsystem_event	
+2026-10-16T03:16:05.166369Z	projects/itcs355-6688143/logs/run.googleapis.com%2Fvarlog%2Fsystem	Default STARTUP TCP probe succeeded after 1 attempt for container "hello-1" on port 8080.
+2026-10-16T03:16:05.164475Z	projects/itcs355-6688143/logs/run.googleapis.com%2Fstderr	2026/10/16 03:16:05 Hello from Cloud Run! The container started successfully and is listening for HTTP requests on port 8080
+2026-10-16T03:16:04.898280Z	projects/itcs355-6688143/logs/run.googleapis.com%2Fvarlog%2Fsystem	Starting new instance. Reason: DEPLOYMENT_ROLLOUT - Instance started due to traffic shifting between revisions due to deployment, traffic split adjustment, or deployment health check.
+[exit 0]
+
+== clean up
+### 2026-10-16T03:16:33Z  as teemtat.wee@gmail.com
+$ gcloud run services delete itcs355-lab5-iamprobe --project itcs355-6688143 --region asia-southeast1 --quiet
+Deleting [itcs355-lab5-iamprobe]...
+..............done.
+Deleted service [itcs355-lab5-iamprobe].
+[exit 0]
+

@@ -1,0 +1,39 @@
+service accounts
+Created service account [itcs355-lab5-train].
+Service account email: itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+Created service account [itcs355-lab5-serve].
+Service account email: itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com
+Created service account [itcs355-lab5-ci].
+Service account email: itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+bindings
+  add bucket itcs355-6688143  roles/storage.objectViewer  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  [lab5-train-read-data]
+WARNING: Adding binding with condition to a policy without condition will change the behavior of add-iam-policy-binding and remove-iam-policy-binding commands.
+  add bucket itcs355-6688143  roles/storage.objectViewer  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  [lab5-train-list-data]
+  add bucket itcs355-6688143  roles/storage.objectUser  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  [lab5-train-write-work]
+  add project itcs355-6688143  roles/aiplatform.user  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for project [itcs355-6688143].
+  add sa itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountUser  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for serviceAccount [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com].
+  add bucket itcs355-6688143  roles/storage.objectViewer  itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com  [lab5-serve-read-model]
+  add repo itcs355  roles/artifactregistry.writer  itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for repository [itcs355].
+  add project itcs355-6688143  roles/aiplatform.user  itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for project [itcs355-6688143].
+  add project itcs355-6688143  roles/run.developer  itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for project [itcs355-6688143].
+  add sa itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountUser  itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for serviceAccount [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com].
+  add sa itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountUser  itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+Updated IAM policy for serviceAccount [itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com].
+  add sa itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com  roles/iam.workloadIdentityUser  //iam.googleapis.com/projects/52907215794/locations/global/workloadIdentityPools/github/attribute.repository/teemtat/itcs355
+Updated IAM policy for serviceAccount [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+  add sa itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountTokenCreator  teemtat.wee@gmail.com
+Updated IAM policy for serviceAccount [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com].
+  add sa itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountTokenCreator  teemtat.wee@gmail.com
+Updated IAM policy for serviceAccount [itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com].
+  add sa itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com  roles/iam.serviceAccountTokenCreator  teemtat.wee@gmail.com
+Updated IAM policy for serviceAccount [itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com].
+
+TRAIN_SA=itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+SERVE_SA=itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com
+CI_SA=itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com

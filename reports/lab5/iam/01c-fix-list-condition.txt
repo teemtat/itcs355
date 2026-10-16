@@ -1,0 +1,11 @@
+### 2026-10-16T03:11:44Z swap list conditions to admit the bare prefix
+removed old list-data
+removed old write-work
+  add bucket itcs355-6688143  roles/storage.objectViewer  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  [lab5-train-read-data]
+  add bucket itcs355-6688143  roles/storage.objectViewer  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  [lab5-train-list-data]
+  add bucket itcs355-6688143  roles/storage.objectUser  itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com  [lab5-train-write-work]
+  add bucket itcs355-6688143  roles/storage.objectViewer  itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com  [lab5-serve-read-model]
+roles/storage.objectUser lab5-train-write-work :: resource.name == "projects/_/buckets/itcs355-6688143/objects/itcs355/lab5" || resource.name.startsWith("projects/_/buckets/itcs355-6688143/objects/itcs355/lab5/") || api.getAttribute("storage.googleapis.com/objectListPrefix", "") == "itcs355/lab5" || api.getAttribute("storage.googleapis.com/objectListPrefix", "").startsWith("itcs355/lab5/")
+roles/storage.objectViewer lab5-train-read-data :: resource.name == "projects/_/buckets/itcs355-6688143/objects/itcs355/data" || resource.name.startsWith("projects/_/buckets/itcs355-6688143/objects/itcs355/data/")
+roles/storage.objectViewer lab5-train-list-data :: api.getAttribute("storage.googleapis.com/objectListPrefix", "") == "itcs355/data" || api.getAttribute("storage.googleapis.com/objectListPrefix", "").startsWith("itcs355/data/")
+roles/storage.objectViewer lab5-serve-read-model :: resource.name.startsWith("projects/_/buckets/itcs355-6688143/objects/itcs355/lab2-registry/") || resource.name.startsWith("projects/_/buckets/itcs355-6688143/objects/itcs355/lab5/registry/")
