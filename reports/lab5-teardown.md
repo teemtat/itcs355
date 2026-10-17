@@ -63,8 +63,11 @@ To remove them anyway (this breaks the model's lineage): `make teardown LAB=5 PU
 
 ## Still to do
 
-- [ ] Re-run `make cost-report LAB=5` after 24 hours, since deletion is asynchronous. Expect
-      the same 17 kept records and nothing else.
+- [x] Re-run `make cost-report LAB=5` after 24 hours, since deletion is asynchronous. Expect
+      the same 17 kept records and nothing else. **Done 2026-10-17T06:30Z:** only the 17 kept
+      SUCCEEDED records; 0 schedules, 0 running pipeline/custom jobs, 0 endpoints, Cloud Run
+      only `scamshield` (capstone), 0 Run jobs, 0 Scheduler jobs, 0 instances, 0 lab5 SAs;
+      Azure 0 resource groups, 0 resources. Log in `reports/lab5/teardown.txt`.
 - [ ] Check the console by hand and take the screenshot of the empty resource list: Vertex
       pipelines, schedules and endpoints, Cloud Run, Cloud Scheduler, and Compute Engine.
 - [ ] Read the actual Lab 5 cost from the billing page, filtered by label `lab=5`.
