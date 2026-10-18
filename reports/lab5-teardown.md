@@ -70,4 +70,6 @@ To remove them anyway (this breaks the model's lineage): `make teardown LAB=5 PU
       Azure 0 resource groups, 0 resources. Log in `reports/lab5/teardown.txt`.
 - [ ] Check the console by hand and take the screenshot of the empty resource list: Vertex
       pipelines, schedules and endpoints, Cloud Run, Cloud Scheduler, and Compute Engine.
-- [ ] Read the actual Lab 5 cost from the billing page, filtered by label `lab=5`.
+- [x] Read the actual Lab 5 cost from the billing page, filtered by label `lab=5`.
+      **Done 2026-10-18:** 8.30 THB labelled, plus 1.04 THB of unlabelled Gemini, so ≈ 9.34 THB, all
+      paid by credits. See [lab5-cost.md](lab5-cost.md) §2.
