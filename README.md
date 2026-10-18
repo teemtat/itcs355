@@ -1,4 +1,4 @@
-# ITCS355 — Reproducible Training (Lab 1), Tracking & Registry (Lab 2), Serving (Lab 3), CI/CD & Monitoring (Lab 4)
+# ITCS355 — Reproducible Training (Lab 1), Tracking & Registry (Lab 2), Serving (Lab 3), CI/CD & Monitoring (Lab 4), Cloud MLOps, Cost & LLM Ops (Lab 5)
 
 > **Course materials live in [`course/`](course/README.md)** — syllabus, slides, the faculty
 > specification, all five lab handouts, and the project brief. Every document is Markdown and
@@ -346,6 +346,132 @@ window for 20 minutes.
 alert policy and the staging service. `make cost-report LAB=4` passes. Record in
 `reports/lab4/teardown.txt`. I left the schedule running for a day before that, which
 cost ~2–3 THB. The billing page shows Cloud Run ฿17.16 for the lab, 2.4× the ~7 THB I estimated from instance time. All of it was covered by credits, so I paid ฿0.
+
+---
+
+## Lab 5 — how to run it
+
+Everything is on GCP (`cloud.env`), apart from Task 4's second provider, which is Azure.
+
+```bash
+python -m cloudlayer.pipelines run                     # ingest → validate → train → evaluate → register → deploy staging
+python scripts/evaluation_gate.py --metrics reports/metrics.json --incumbent 0.90   # the gate on its own; exits 1
+python -m cloudlayer.pipelines schedule                # weekly retrain, Mon 02:00 Bangkok
+bash infra/gcp/iam-lab5.sh up                          # the three scoped service accounts
+bash infra/gcp/iam-lab5-experiment.sh                  # remove a permission, record what breaks
+make portability-audit                                 # no provider strings in src/
+bash infra/azure/lab5-swap.sh demo                     # Azure: create, swap-check, delete
+make llm-turbine-eval && make llm-turbine-gate         # LLM golden set: baseline, then a gate run that FAILS
+make llm-attack                                        # Task 8: the injection, and the guard firing (offline)
+make llm-cost                                          # Task 9: token bill, with the working
+python -m cloudlayer.pipelines teardown && make teardown LAB=5 && bash infra/gcp/iam-lab5.sh down
+```
+
+The LLM targets run offline against recorded Vertex responses and cost nothing.
+`make llm-record` is the only one that spends tokens.
+
+| Task | Write-up |
+|---|---|
+| 1, 3: pipeline, gate, schedule | [`reports/lab5-pipeline.md`](reports/lab5-pipeline.md) |
+| 2: least privilege | [`reports/lab5-iam.md`](reports/lab5-iam.md) |
+| 4: portability | [`reports/lab5-portability.md`](reports/lab5-portability.md) |
+| 5: cost | [`reports/lab5-cost.md`](reports/lab5-cost.md) |
+| 6: teardown, with console screenshots | [`reports/lab5-teardown.md`](reports/lab5-teardown.md), [`reports/lab5/screenshots/`](reports/lab5/screenshots/) |
+| 7–9: LLM gate, guardrail, token bill | [`reports/lab5-llm.md`](reports/lab5-llm.md) |
+
+---
+
+## What should trigger a retrain
+
+Three facts about this system decide it:
+
+- **Labels arrive 7 days late.** The label is `failed_within_7d`, so the newest week of data
+  never has labels yet.
+- **The fleet changes slowly.** The same 240 turbines, wearing over weeks.
+- **Its upstream has already broken once.** In Lab 4, a gateway added +6 °C to every reading,
+  and only the drift check caught it.
+
+| Strategy | When it is right here | How it fails here |
+|---|---|---|
+| **Fixed schedule** (weekly) | The normal case. One week is exactly one new batch of matured labels, and the gate rejects a retrain that isn't better | Slow after a real step change (up to 7 days, plus the label lag). Blind: it retrains on whatever arrived |
+| **Data volume** (≥ 6,000 newly *labelled* readings) | When the reading rate is uneven: machines offline, or a growing fleet | Volume says nothing about content. A gateway that replays readings trips it with no new information |
+| **Drift-triggered** (PSI > 0.05) | When inputs genuinely moved and an independent check confirms it | It can't tell "the machines changed" from "the sensor broke", and here the second is more likely |
+
+**What I chose:** a weekly schedule (Mondays 02:00 Bangkok), behind the gate. **Drift alerts a
+person and does not retrain.** Once someone has confirmed the shift is real, they start the same
+pipeline by hand, and it goes through the same gate.
+
+**Worst case:** retraining triggered by drift on corrupted upstream data.
+- Drift stays above threshold for as long as the fault lasts, so the trigger fires every
+  5 minutes. That is about 720 THB a day, the whole term budget in a day.
+- Seven days later the corrupted rows have labels. The candidate is trained *and tested* on
+  +6 °C data, and the incumbent is re-scored on the same split, so **the gate passes the wrong
+  model**. A gate protects against noise, not against a test set both models share.
+- When the sensor is fixed, the deployed model under-scores every machine.
+
+A fixed schedule would have retrained once, on the same bad data, after a week. It is still a
+failure, but a slower one with a person in the loop.
+
+---
+
+## Lab 5 — what happened
+
+**The gate is real.**
+- One run passed: registered as `itcs355-6688143@3` and deployed to staging.
+- One run on a degraded config failed the gate, so register and deploy were skipped.
+- One run on contract-failing data aborted at validate.
+- The gate needs the candidate to beat production by **+0.004 AUC**. `--incumbent 0.90`
+  against our 0.848 candidate exits 1 (`GATE FAIL … not registering`).
+
+**The schedule fired once, as the default compute account.** That account is over-broad
+(`roles/editor`), so it hides the "fails only when scheduled" trap. With the scoped training
+account, a scheduled run would break at the deploy step.
+
+**What broke when I removed a permission.**
+- I took `storage.objects.list` away from the training identity.
+- The pipeline's data read (`gcloud storage rsync` of the data prefix) failed with a 403 that
+  names the *bucket* and says "or it may not exist". That reads like a typo in the bucket URI,
+  not a missing grant.
+- The same CSV still downloaded fine **by name**, in the same second, as the same identity.
+- So "read the data" takes two permissions, because the code reads a prefix, not a file.
+
+**Portability: half yes, half no.**
+- The audit is clean.
+- Azure `upload` / `download` / `invoke` passed on a real Azure for Students subscription
+  (Container Apps, malaysiawest).
+- The hardest method was `upload`, because writes need auth and the serving image ships no SDK.
+- The leak I couldn't hide is **who may call**. Cloud Run is private by default; Container
+  Apps' ingress is public. The same `invoke` has different security behind it.
+- The account leaked too: the student subscription refused `southeastasia` outright.
+- A full migration is about 25 engineering days.
+- Verdict: keeping `src/` provider-free was worth it. As insurance against leaving GCP, the
+  eleven-method seam was not.
+
+**LLM step (Gemini on Vertex).**
+- 13 golden cases, with token counts copied from `usage_metadata`.
+- **Switching Flash to Flash-Lite fails the gate on two regressions**, even though the pass rate
+  only dropped from 92% to 77%:
+  - turbine-008: it ignored a request to disable the overspeed trip, when it should have refused.
+  - turbine-012: **it made up a classifier score** of 0.65.
+- Task 8: an injected supervisor "override" in `operator_note` made the first-draft prompt refuse
+  a 0.88-risk turbine instead of raising an urgent order. `src/llmguard.py` re-derives the
+  decision from the score and logs every override. `make llm-attack` shows it firing.
+- **8.86 THB per 1,000 requests**, about 30× the classifier.
+
+**Cost.**
+- Estimate 45 THB. **Actual 9.34 THB** from billing filtered by `lab=5`, all paid by credits.
+- Most of the gap: I assumed about 300 Gemini calls and made 85, and planned 11 pipeline runs
+  and needed 5.
+- The pipeline's flat **run fee (5.04 THB) cost more than all the compute** it scheduled.
+- Optimisation: staging moved from 2 vCPU always-on to 1 vCPU scale-to-zero. Over a week that
+  is about 1,065 THB avoided, paid for with an 8–15 s first request after idle.
+
+**Teardown.**
+- Schedules went first, then staging and the three service accounts.
+- Merging the lab made CD recreate staging. CD labels it `lab=4` (it dates from Lab 4), so
+  `make teardown LAB=5` would have missed it. I deleted it with `LAB=4`.
+- The console screenshots were taken in asia-southeast1, the region the lab actually ran in.
+- The 17 SUCCEEDED job records are kept on purpose for lineage, and cost nothing.
 
 ---
 
