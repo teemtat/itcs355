@@ -1,0 +1,70 @@
+{
+  "run": "projects/52907215794/locations/asia-southeast1/pipelineJobs/itcs355-training-pipeline-20261016105130",
+  "display_name": "itcs355-lab5-20261016-035129",
+  "state": "PIPELINE_STATE_SUCCEEDED",
+  "create": "2026-10-16T03:51:32.992713+00:00",
+  "start": "2026-10-16T03:51:34.297967+00:00",
+  "end": "2026-10-16T04:18:06.847935+00:00",
+  "service_account": "52907215794-compute@developer.gserviceaccount.com",
+  "schedule": "",
+  "params": {},
+  "labels": {
+    "course": "itcs355",
+    "vertex-ai-pipelines-run-billing-id": "8109130251801460736",
+    "student": "itcs355-6688143",
+    "lab": "5"
+  },
+  "console": "https://console.cloud.google.com/vertex-ai/locations/asia-southeast1/pipelines/runs/itcs355-training-pipeline-20261016105130?project=52907215794",
+  "error": "",
+  "steps": [
+    {
+      "task": "ingest",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T03:51:35.102322+00:00",
+      "end": "2026-10-16T03:55:19.481109+00:00",
+      "error": ""
+    },
+    {
+      "task": "validate",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T03:55:19.872332+00:00",
+      "end": "2026-10-16T03:59:14.530817+00:00",
+      "error": ""
+    },
+    {
+      "task": "train",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T03:59:14.989497+00:00",
+      "end": "2026-10-16T04:04:43.457654+00:00",
+      "error": ""
+    },
+    {
+      "task": "evaluate",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:04:43.918691+00:00",
+      "end": "2026-10-16T04:09:04.815444+00:00",
+      "error": ""
+    },
+    {
+      "task": "condition-1",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:09:05.316015+00:00",
+      "end": "2026-10-16T04:18:06.662324+00:00",
+      "error": ""
+    },
+    {
+      "task": "register",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:09:05.688885+00:00",
+      "end": "2026-10-16T04:14:01.375802+00:00",
+      "error": ""
+    },
+    {
+      "task": "deploy-staging",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T04:14:01.779101+00:00",
+      "end": "2026-10-16T04:18:06.481187+00:00",
+      "error": ""
+    }
+  ]
+}

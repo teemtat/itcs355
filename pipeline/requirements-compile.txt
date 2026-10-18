@@ -1,0 +1,7 @@
+# Lab 5 — what the COMPILE HOST needs to build and submit the pipeline (not the step image).
+#   uv pip install -r pipeline/requirements-compile.txt   # into the repo's .venv
+# Pinned to the versions the evidence in reports/lab5-pipeline.md was produced with.
+kfp==2.17.0
+google-cloud-pipeline-components==2.22.0
+google-cloud-aiplatform==1.165.1
+PyYAML==6.0.3

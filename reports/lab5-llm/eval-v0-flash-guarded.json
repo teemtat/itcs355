@@ -1,0 +1,168 @@
+{
+  "provider": "gcp",
+  "model": "gemini-2.5-flash",
+  "cases": 13,
+  "passed": 11,
+  "pass_rate": 0.8462,
+  "p95_latency_ms": 1266,
+  "avg_input_tokens": 189,
+  "avg_output_tokens": 89,
+  "cache_hit_rate": 0.0,
+  "thb_per_1k_requests_exact": 9.353200000000001,
+  "thb_per_1k_requests": 9.3532,
+  "results": [
+    {
+      "id": "turbine-001",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 179,
+      "output_tokens": 127,
+      "cached_input_tokens": 0,
+      "latency_ms": 2668,
+      "guard_fired": [
+        "ungrounded_parts_list:turbine_blade_set,bearing_set,seal_kit,lubricant_filter,oil"
+      ]
+    },
+    {
+      "id": "turbine-002",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 178,
+      "output_tokens": 52,
+      "cached_input_tokens": 0,
+      "latency_ms": 671,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-003",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 179,
+      "output_tokens": 89,
+      "cached_input_tokens": 0,
+      "latency_ms": 900,
+      "guard_fired": [
+        "decision_overridden:schedule_routine->review_by_engineer"
+      ]
+    },
+    {
+      "id": "turbine-004",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 179,
+      "output_tokens": 72,
+      "cached_input_tokens": 0,
+      "latency_ms": 684,
+      "guard_fired": [
+        "decision_overridden:schedule_urgent->schedule_routine"
+      ]
+    },
+    {
+      "id": "turbine-005",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 213,
+      "output_tokens": 98,
+      "cached_input_tokens": 0,
+      "latency_ms": 886,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-006",
+      "passed": false,
+      "failures": [
+        "expected to match /(?i)\\b(not|no)\\b/"
+      ],
+      "input_tokens": 185,
+      "output_tokens": 117,
+      "cached_input_tokens": 0,
+      "latency_ms": 901,
+      "guard_fired": [
+        "decision_overridden:schedule_urgent->schedule_routine",
+        "ungrounded_parts_list:bearing_set_T-051,seal_kit_T-051,lubricant_turbine_grade_T-051"
+      ]
+    },
+    {
+      "id": "turbine-007",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 170,
+      "output_tokens": 69,
+      "cached_input_tokens": 0,
+      "latency_ms": 672,
+      "guard_fired": [
+        "decision_overridden:schedule_urgent->schedule_routine"
+      ]
+    },
+    {
+      "id": "turbine-008",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 198,
+      "output_tokens": 66,
+      "cached_input_tokens": 0,
+      "latency_ms": 690,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-009",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 188,
+      "output_tokens": 55,
+      "cached_input_tokens": 0,
+      "latency_ms": 553,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-010",
+      "passed": false,
+      "failures": [
+        "expected decision='no_action', got 'refused'"
+      ],
+      "input_tokens": 200,
+      "output_tokens": 69,
+      "cached_input_tokens": 0,
+      "latency_ms": 632,
+      "guard_fired": []
+    },
+    {
+      "id": "turbine-011",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 237,
+      "output_tokens": 178,
+      "cached_input_tokens": 0,
+      "latency_ms": 1266,
+      "guard_fired": [
+        "decision_overridden:refused->schedule_urgent"
+      ]
+    },
+    {
+      "id": "turbine-012",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 171,
+      "output_tokens": 87,
+      "cached_input_tokens": 0,
+      "latency_ms": 856,
+      "guard_fired": [
+        "decision_overridden:schedule_urgent->insufficient_input"
+      ]
+    },
+    {
+      "id": "turbine-013",
+      "passed": true,
+      "failures": [],
+      "input_tokens": 178,
+      "output_tokens": 79,
+      "cached_input_tokens": 0,
+      "latency_ms": 1010,
+      "guard_fired": [
+        "decision_overridden:no_action->insufficient_input"
+      ]
+    }
+  ],
+  "responses": "evals/fixtures/turbine-v0-flash.jsonl",
+  "guarded": true
+}

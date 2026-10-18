@@ -1,0 +1,45 @@
+Azure for Students	teemtat.wee@student.mahidol.ac.th
+== resource providers (first run only takes a minute)
+== resource group itcs355-6688143 (malaysiawest)
+== storage itcs3556688143/itcs355
+   waiting for the role to propagate (up to 5 min)
+== registry itcs3556688143 and image itcs355-serve:swap-043e4be
+sha256:d63334d8f3e190fa8f7e07ddfddb262cc7afd6d57e900455e0238ed646f5756d
+Login Succeeded
+itcs3556688143.azurecr.io/itcs355-serve:swap-043e4be
+   itcs3556688143.azurecr.io/itcs355-serve@sha256:d63334d8f3e190fa8f7e07ddfddb262cc7afd6d57e900455e0238ed646f5756d
+== identity itcs355-serve-id
+== model -> blob, through cloudlayer/azure.py
+   https://itcs3556688143.blob.core.windows.net/itcs355/itcs355/models/itcs355/1/model.joblib
+== Container Apps itcs355-env/itcs355-serve
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+/ Running ..| Running ..\ Running ..- Running ../ Running ..[KWARNING: 
+Container Apps environment created. To deploy a container app, use: az containerapp create --help
+
+   giving AcrPull a minute to propagate before the first pull
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+WARNING: User identity /subscriptions/af401843-a71e-4f38-b473-36abb038248b/resourcegroups/itcs355-6688143/providers/microsoft.managedidentity/userassignedidentities/itcs355-serve-id is already assigned to containerapp
+  the time zones listed under HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows
+/ Running ..| Running ..\ Running ..- Running ../ Running ..| Running ..\ Running ..- Running ../ Running ..| Running ..\ Running ..- Running ../ Running ..[KWARNING: 
+Container app created. Access your app at https://itcs355-serve.politeground-413be69a.malaysiawest.azurecontainerapps.io/
+
+WARNING: The behavior of this command has been altered by the following extension: containerapp
+   https://itcs355-serve.politeground-413be69a.malaysiawest.azurecontainerapps.io/ready -> {"status":"ready","model_version":"1"}
+python scripts/portability_swap_check.py --second-provider azure
+primary   gcp    gs://itcs355-6688143/itcs355
+secondary azure  https://itcs3556688143.blob.core.windows.net/itcs355/itcs355
+
+  [PASS            ] upload    https://itcs3556688143.blob.core.windows.net/itcs355/itcs355/portability/probe.txt
+  [PASS            ] download  26 bytes, identical
+  [PASS            ] invoke    p=0.039 model_version=1 1046 ms
+
+Write-up (Lab 5 Task 4), half a page:
+  - which method was hardest to port, and why
+  - one place the abstraction genuinely leaked and could not be hidden
+  - what a full migration would cost in engineering days
+  - was building this abstraction worth it? A well-argued 'no' scores full marks.
+== deleting resource group itcs355-6688143 (takes a few minutes)
+   az group exists -n itcs355-6688143 -> false
+   anything left tagged course=itcs355 lab=5:
+   (empty above = clean; deletion is asynchronous, so check the portal again tomorrow)
+exit=0  (swap-check PASS x3; resource group deleted)

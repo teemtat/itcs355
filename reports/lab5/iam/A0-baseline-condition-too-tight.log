@@ -1,0 +1,54 @@
+== baseline, every grant present
+### 2026-10-16T03:07:51Z  as itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+$ pull_data
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Users/teemtat/Documents/MUICT/4TH YEAR/OPS/public_teaching_mlaiops/.claude/worktrees/lab5-iam-c6309d/cloudlayer/gcp.py", line 106, in download_prefix
+    _run(["gcloud", "storage", "rsync", "--recursive", src, str(dest), "--quiet"])
+  File "/Users/teemtat/Documents/MUICT/4TH YEAR/OPS/public_teaching_mlaiops/.claude/worktrees/lab5-iam-c6309d/cloudlayer/gcp.py", line 55, in _run
+    raise RuntimeError(f"{' '.join(cmd)} failed ({out.returncode}):\n{out.stderr.strip()}")
+RuntimeError: gcloud storage rsync --recursive gs://itcs355-6688143/itcs355/data /var/folders/p5/82yy1xsd1555hs3mqbcvmf2h0000gn/T/tmp.xNKa3gTlJM --quiet failed (1):
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com].
+ERROR: (gcloud.storage.rsync) PERMISSION_DENIED: Failed to impersonate [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com]. Make sure the account that's trying to impersonate it has access to the service account itself and the "roles/iam.serviceAccountTokenCreator" role. Permission 'iam.serviceAccounts.getAccessToken' denied on resource (or it may not exist). Remediate access with this Troubleshooter URL or share it with your administrator - https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExNDJhZS0yYTBlLTczNWMtYjAwNy1mN2NhOWIwNWYxNDQSAA%3D%3D . This command is authenticated as teemtat.wee@gmail.com which is the active account specified by the [core/account] property. Impersonation is used to impersonate itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com. 
+- '@type': type.googleapis.com/google.rpc.ErrorInfo
+  domain: iam.googleapis.com
+  metadata:
+    error_info_id: CiQwMWExNDJhZS0yYTBlLTczNWMtYjAwNy1mN2NhOWIwNWYxNDQSAA==
+    permission: iam.serviceAccounts.getAccessToken
+    troubleshooter_url: https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExNDJhZS0yYTBlLTczNWMtYjAwNy1mN2NhOWIwNWYxNDQSAA%3D%3D
+  reason: IAM_PERMISSION_DENIED
+[exit 1]
+
+### 2026-10-16T03:08:23Z  as itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+$ pull_data
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Users/teemtat/Documents/MUICT/4TH YEAR/OPS/public_teaching_mlaiops/.claude/worktrees/lab5-iam-c6309d/cloudlayer/gcp.py", line 106, in download_prefix
+    _run(["gcloud", "storage", "rsync", "--recursive", src, str(dest), "--quiet"])
+  File "/Users/teemtat/Documents/MUICT/4TH YEAR/OPS/public_teaching_mlaiops/.claude/worktrees/lab5-iam-c6309d/cloudlayer/gcp.py", line 55, in _run
+    raise RuntimeError(f"{' '.join(cmd)} failed ({out.returncode}):\n{out.stderr.strip()}")
+RuntimeError: gcloud storage rsync --recursive gs://itcs355-6688143/itcs355/data /var/folders/p5/82yy1xsd1555hs3mqbcvmf2h0000gn/T/tmp.XywSPTurFF --quiet failed (1):
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com].
+ERROR: (gcloud.storage.rsync) PERMISSION_DENIED: Failed to impersonate [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com]. Make sure the account that's trying to impersonate it has access to the service account itself and the "roles/iam.serviceAccountTokenCreator" role. Permission 'iam.serviceAccounts.getAccessToken' denied on resource (or it may not exist). Remediate access with this Troubleshooter URL or share it with your administrator - https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExNDJhZS1hNzk3LTc4YWUtOWUwOC0wOTY5NWMzN2VkMGISAA%3D%3D . This command is authenticated as teemtat.wee@gmail.com which is the active account specified by the [core/account] property. Impersonation is used to impersonate itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com. 
+- '@type': type.googleapis.com/google.rpc.ErrorInfo
+  domain: iam.googleapis.com
+  metadata:
+    error_info_id: CiQwMWExNDJhZS1hNzk3LTc4YWUtOWUwOC0wOTY5NWMzN2VkMGISAA==
+    permission: iam.serviceAccounts.getAccessToken
+    troubleshooter_url: https://console.cloud.google.com/iam-admin/troubleshooter/summary;errorId=CiQwMWExNDJhZS1hNzk3LTc4YWUtOWUwOC0wOTY5NWMzN2VkMGISAA%3D%3D
+  reason: IAM_PERMISSION_DENIED
+[exit 1]
+
+### 2026-10-16T03:08:54Z  as itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+$ pull_data
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Users/teemtat/Documents/MUICT/4TH YEAR/OPS/public_teaching_mlaiops/.claude/worktrees/lab5-iam-c6309d/cloudlayer/gcp.py", line 106, in download_prefix
+    _run(["gcloud", "storage", "rsync", "--recursive", src, str(dest), "--quiet"])
+  File "/Users/teemtat/Documents/MUICT/4TH YEAR/OPS/public_teaching_mlaiops/.claude/worktrees/lab5-iam-c6309d/cloudlayer/gcp.py", line 55, in _run
+    raise RuntimeError(f"{' '.join(cmd)} failed ({out.returncode}):\n{out.stderr.strip()}")
+RuntimeError: gcloud storage rsync --recursive gs://itcs355-6688143/itcs355/data /var/folders/p5/82yy1xsd1555hs3mqbcvmf2h0000gn/T/tmp.bbYFF6dbqg --quiet failed (1):
+WARNING: This command is using service account impersonation. All API calls will be executed as [itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com].
+ERROR: (gcloud.storage.rsync) HTTPError 403: itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com does not have storage.objects.get access to the Google Cloud Storage object. Permission 'storage.objects.get' denied on resource '//storage.googleapis.com/projects/_/buckets/itcs355-6688143/objects/itcs355/data' (or it may not exist). This command is authenticated as teemtat.wee@gmail.com which is the active account specified by the [core/account] property. Impersonation is used to impersonate itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com.
+[exit 1]
+

@@ -1,0 +1,26 @@
+== itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+-- project
+roles/aiplatform.user
+-- bucket gs://itcs355-6688143
+roles/storage.objectUser | lab5-train-write-work
+roles/storage.objectViewer | lab5-train-read-data
+roles/storage.objectViewer | lab5-train-list-data
+-- repo itcs355
+-- may act as / be acted as
+  roles/iam.serviceAccountUser on itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+== itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com
+-- project
+-- bucket gs://itcs355-6688143
+roles/storage.objectViewer | lab5-serve-read-model
+-- repo itcs355
+-- may act as / be acted as
+== itcs355-lab5-ci@itcs355-6688143.iam.gserviceaccount.com
+-- project
+roles/aiplatform.user
+roles/run.developer
+-- bucket gs://itcs355-6688143
+-- repo itcs355
+roles/artifactregistry.writer
+-- may act as / be acted as
+  roles/iam.serviceAccountUser on itcs355-lab5-train@itcs355-6688143.iam.gserviceaccount.com
+  roles/iam.serviceAccountUser on itcs355-lab5-serve@itcs355-6688143.iam.gserviceaccount.com

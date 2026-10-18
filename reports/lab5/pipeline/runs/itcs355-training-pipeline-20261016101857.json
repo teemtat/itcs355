@@ -1,0 +1,56 @@
+{
+  "run": "projects/52907215794/locations/asia-southeast1/pipelineJobs/itcs355-training-pipeline-20261016101857",
+  "display_name": "itcs355-lab5-20261016-031855",
+  "state": "PIPELINE_STATE_FAILED",
+  "create": "2026-10-16T03:19:00.055960+00:00",
+  "start": "2026-10-16T03:19:06.304079+00:00",
+  "end": "2026-10-16T03:48:42.418159+00:00",
+  "service_account": "52907215794-compute@developer.gserviceaccount.com",
+  "schedule": "",
+  "params": {},
+  "labels": {
+    "course": "itcs355",
+    "student": "itcs355-6688143",
+    "vertex-ai-pipelines-run-billing-id": "6286579777599963136",
+    "lab": "5"
+  },
+  "console": "https://console.cloud.google.com/vertex-ai/locations/asia-southeast1/pipelines/runs/itcs355-training-pipeline-20261016101857?project=52907215794",
+  "error": " The DAG failed because some tasks failed. The failed tasks are: [train].; Job (project_id = itcs355-6688143, job_id = 6286579777599963136) is failed due to the above error.; Failed to handle the job: {project_number = 52907215794, job_id = 6286579777599963136}",
+  "steps": [
+    {
+      "task": "ingest",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T03:19:07.181398+00:00",
+      "end": "2026-10-16T03:24:43.512021+00:00",
+      "error": ""
+    },
+    {
+      "task": "validate",
+      "state": "SUCCEEDED",
+      "start": "2026-10-16T03:24:43.874757+00:00",
+      "end": "2026-10-16T03:28:28.438119+00:00",
+      "error": ""
+    },
+    {
+      "task": "train",
+      "state": "FAILED",
+      "start": "2026-10-16T03:28:28.806696+00:00",
+      "end": "2026-10-16T03:48:42.095868+00:00",
+      "error": "The replica workerpool0-0 exited with a non-zero status of 1. Termination reason: Error. To find out more about why your job exited please check the logs: https://console.cloud.google.com/logs/viewer?project=52907215794&resource=ml_job%2Fjob_id%2F6962880308874051584&advancedFilter=resource.type%3D%22ml_job%22%0Aresource.labels.job_id%3D%226962880308874051584%22"
+    },
+    {
+      "task": "evaluate",
+      "state": "NOT_TRIGGERED",
+      "start": null,
+      "end": "2026-10-16T03:48:42.140425+00:00",
+      "error": ""
+    },
+    {
+      "task": "condition-1",
+      "state": "NOT_TRIGGERED",
+      "start": null,
+      "end": "2026-10-16T03:48:42.157685+00:00",
+      "error": ""
+    }
+  ]
+}

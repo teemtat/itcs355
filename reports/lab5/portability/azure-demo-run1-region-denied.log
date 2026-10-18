@@ -1,0 +1,33 @@
+Azure for Students	teemtat.wee@student.mahidol.ac.th
+== resource providers (first run only takes a minute)
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+== resource group itcs355-6688143 (southeastasia)
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+== storage itcs3556688143/itcs355
+ERROR: (RequestDisallowedByAzure) Resource 'itcs3556688143' was disallowed by Azure: This policy maintains a set of best available regions where your subscription can deploy resources. The objective of this policy is to ensure that your subscription has full access to Azure services with optimal performance. Should you need additional or different regions, contact support..
+Code: RequestDisallowedByAzure
+Message: Resource 'itcs3556688143' was disallowed by Azure: This policy maintains a set of best available regions where your subscription can deploy resources. The objective of this policy is to ensure that your subscription has full access to Azure services with optimal performance. Should you need additional or different regions, contact support..
+Target: itcs3556688143
+== deleting resource group itcs355-6688143 (takes a few minutes)
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+   az group exists -n itcs355-6688143 -> false
+   anything left tagged course=itcs355 lab=5:
+/opt/homebrew/Caskroom/azure-cli/2.91.0/libexec/lib/python3.14/site-packages/azure/mgmt/resource/deploymentstacks/models/_models.py:119: SyntaxWarning: "\/" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\/"? A raw string is also an option.
+  following actions are automatically appended to 'excludedActions': '*\/read' and
+   (empty above = clean; deletion is asynchronous, so check the portal again tomorrow)
+exit=1

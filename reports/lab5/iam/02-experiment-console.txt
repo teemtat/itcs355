@@ -1,0 +1,10 @@
+A. training identity, storage.objects.list on itcs355/data/
+  attempt 1: pass
+  attempt 1: fail
+  attempt 1: pass
+B. CI identity, iam.serviceAccountUser (actAs) on the serving SA
+  attempt 1: pass
+  attempt 2: pass
+  attempt 3: fail
+  attempt 1: pass
+logs in reports/lab5/iam/

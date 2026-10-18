@@ -1,0 +1,21 @@
+primary   gcp
+secondary azure
+
+  [NOT IMPLEMENTED ] upload  
+  [NOT IMPLEMENTED ] download  
+  [NOT IMPLEMENTED ] invoke  
+
+Write-up (Lab 5 Task 4), half a page:
+  - which method was hardest to port, and why
+  - one place the abstraction genuinely leaked and could not be hidden
+  - what a full migration would cost in engineering days
+  - was building this abstraction worth it? A well-argued 'no' scores full marks.
+exit 1
+primary   gcp
+secondary azure
+
+  [FAIL            ] upload  ValueError: BLOB_URI must be https://<account>.blob.core.windows.net/<container>/<prefix> for Azure, got 'gs://itcs355-6688143/itcs355'
+  [FAIL            ] download  RuntimeError: No Azure credential: set AZURE_STORAGE_KEY (Azurite), run inside Container Apps with a managed identity, or install the az CLI and run `az login`.
+  [FAIL            ] invoke  FileNotFoundError: [Errno 2] No such file or directory: 'az'
+
+Write-up (Lab 5 Task 4), half a page:

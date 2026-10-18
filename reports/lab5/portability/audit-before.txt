@@ -1,0 +1,10 @@
+$ make portability-audit   # stock audit at 0747212 (patterns only)
+PORTABILITY AUDIT PASSED — src, service, monitoring, tests contain no provider-specific strings
+
+$ make portability-audit   # extended audit (adds cloud.env resolution), src/ still at 0747212
+PORTABILITY AUDIT FAILED — provider details leaked outside cloudlayer/
+
+  src/costs.py:3  literal REGION from cloud.env  ->  GCP rates below were verified on 2026-09-20 for asia-southeast1 (Singapore), whi
+  src/costs.py:11  literal REGION from cloud.env  ->  (service 6F81-5844-456A, serviceRegions contains asia-southeast1), which is the
+
+Move each reference into cloudlayer/ or into cloud.env.

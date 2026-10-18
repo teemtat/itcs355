@@ -220,6 +220,40 @@ llm-gate: ## Prove the gate fails on a degraded set — expected to exit non-zer
 	python scripts/llm_eval.py --responses evals/fixtures/triage-regressed.jsonl \
 	  --out reports/llm_eval.json --baseline reports/llm_eval-baseline.json
 
+# Lab 5 Part B for this system: turbine maintenance triage on Gemini (Vertex AI).
+# Everything below is offline against recorded fixtures except llm-record.
+.PHONY: llm-turbine-eval llm-turbine-gate llm-cap-gate llm-guard-eval llm-attack llm-cost llm-record
+LLM_GOLD := --golden evals/golden/turbine.jsonl
+LLM_OUT  := reports/lab5-llm
+
+llm-turbine-eval: ## Turbine golden set (13 cases) against the recorded baseline (v1 prompt, Flash)
+	python scripts/llm_eval.py $(LLM_GOLD) --responses evals/fixtures/turbine-v1-flash.jsonl \
+	  --out $(LLM_OUT)/eval-v1-flash.json
+
+llm-turbine-gate: llm-turbine-eval ## Gate the changed model (Flash-Lite) against the baseline — FAILS, 2 regressions
+	python scripts/llm_eval.py $(LLM_GOLD) --responses evals/fixtures/turbine-v1-flashlite.jsonl \
+	  --out $(LLM_OUT)/eval-v1-flashlite.json --baseline $(LLM_OUT)/eval-v1-flash.json
+
+llm-cap-gate: llm-turbine-eval ## Gate max_output_tokens=96 against the baseline — passes (64 would not)
+	python scripts/llm_eval.py $(LLM_GOLD) --responses evals/fixtures/turbine-v1-flash-cap96.jsonl \
+	  --out $(LLM_OUT)/eval-v1-flash-cap96.json --baseline $(LLM_OUT)/eval-v1-flash.json
+
+llm-guard-eval: ## The first-draft (v0) responses, raw and then through src/llmguard.py
+	-python scripts/llm_eval.py $(LLM_GOLD) --responses evals/fixtures/turbine-v0-flash.jsonl \
+	  --out $(LLM_OUT)/eval-v0-flash.json
+	python scripts/llm_eval.py $(LLM_GOLD) --responses evals/fixtures/turbine-v0-flash.jsonl \
+	  --guard --out $(LLM_OUT)/eval-v0-flash-guarded.json
+
+llm-attack: ## Task 8: replay the injection that suppressed an urgent work order, show the guard fire (offline)
+	python scripts/llm_attack.py
+
+llm-cost: ## Task 9: THB per 1k requests, output-cap saving, cache break-even — working shown
+	python scripts/llm_cost.py
+
+llm-record: ## SPENDS TOKENS: record a fixture, e.g. make llm-record PROMPT=v1 MODEL=gemini-2.5-flash OUT=name
+	python scripts/llm_record.py --prompt evals/prompts/turbine-$(PROMPT).txt --model $(MODEL) \
+	  --out evals/fixtures/turbine-$(OUT).jsonl
+
 cost: ## Build the cost report
 	python scripts/cost_report.py --estimate $(EST) --actual $(ACT) --rps $(RPS) --instance $(INSTANCE)
 

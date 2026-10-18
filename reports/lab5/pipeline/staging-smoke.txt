@@ -1,0 +1,3 @@
+PASS  single        200  version=3  283 ms  {"probability": 0.029882258023296228, "model_version": "3"}
+PASS  batch         200  version=3  146 ms  {"probabilities": [0.016313024946273725, 0.5284682348211688], "model_version": "3"}
+PASS  out-of-range  422  version=3  133 ms  {"detail": [{"type": "less_than_equal", "loc": ["body", "load_pct"], "msg": "Input should be less than or equa

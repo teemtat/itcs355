@@ -1,0 +1,13 @@
+python scripts/portability_swap_check.py --second-provider azure
+primary   gcp    gs://itcs355-6688143/itcs355
+secondary azure  https://itcs3556688143.blob.core.windows.net/itcs355/itcs355
+
+  [PASS            ] upload    https://itcs3556688143.blob.core.windows.net/itcs355/itcs355/portability/probe.txt
+  [PASS            ] download  26 bytes, identical
+  [PASS            ] invoke    p=0.039 model_version=1 1046 ms
+
+Write-up (Lab 5 Task 4), half a page:
+  - which method was hardest to port, and why
+  - one place the abstraction genuinely leaked and could not be hidden
+  - what a full migration would cost in engineering days
+  - was building this abstraction worth it? A well-argued 'no' scores full marks.
