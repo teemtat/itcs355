@@ -80,8 +80,26 @@ CI/CD uses was labelled for an older lab, and the per-lab teardown silently miss
       SUCCEEDED records; 0 schedules, 0 running pipeline/custom jobs, 0 endpoints, Cloud Run
       only `scamshield` (capstone), 0 Run jobs, 0 Scheduler jobs, 0 instances, 0 lab5 SAs;
       Azure 0 resource groups, 0 resources. Log in `reports/lab5/teardown.txt`.
-- [ ] Check the console by hand and take the screenshot of the empty resource list: Vertex
+- [x] Check the console by hand and take the screenshot of the empty resource list: Vertex
       pipelines, schedules and endpoints, Cloud Run, Cloud Scheduler, and Compute Engine.
+      **Done 2026-10-18, after the post-merge teardown**, in
+      [`reports/lab5/screenshots/`](lab5/screenshots/):
+
+      | # | Console page | What it shows |
+      |---|---|---|
+      | 1 | Cloud Run | only `scamshield` (capstone); no `itcs355-staging` |
+      | 2 | Vertex AI Pipelines → Schedules, asia-southeast1 | empty |
+      | 3 | Vertex AI Pipelines → Runs, asia-southeast1 | the 5 Lab 5 runs, 3 Succeeded and 2 Failed, none running |
+      | 4 | Vertex AI Endpoints, asia-southeast1 | empty |
+      | 5 | Cloud Scheduler | empty |
+      | 6 | Compute Engine → VM instances | empty |
+      | 7 | IAM → Service accounts | no `itcs355-lab5-*` (only the compute default, `gh-deployer` and the capstone's `scamshield-deployer`) |
+      | 8 | Azure → Resource groups (Azure for Students) | empty |
+
+      The first pass of shots 2–4 was taken with the console's region selector on its default,
+      us-central1, which proves nothing about a lab that ran in asia-southeast1, so they were
+      retaken. That is the same lesson as the `lab=4` label: an empty list only counts if you
+      looked in the place the resource would have been.
 - [x] Read the actual Lab 5 cost from the billing page, filtered by label `lab=5`.
       **Done 2026-10-18:** 8.30 THB labelled, plus 1.04 THB of unlabelled Gemini, so ≈ 9.34 THB, all
       paid by credits. See [lab5-cost.md](lab5-cost.md) §2.
