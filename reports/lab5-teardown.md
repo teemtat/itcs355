@@ -61,6 +61,18 @@ the 17 is running, and none of them costs anything.
 
 To remove them anyway (this breaks the model's lineage): `make teardown LAB=5 PURGE=True`.
 
+## After merging PR #6
+
+Merging Lab 5 into `main` on 2026-10-18 at 05:46 UTC ran CI, and CD then **recreated
+`itcs355-staging`**, the same thing that happened after the Lab 4 merge. The CD workflow
+dates from Lab 4 and labels the service `lab=4`, so `make teardown LAB=5` would not have
+found it. I deleted it at 05:53 UTC with `make teardown LAB=4`. `make cost-report LAB=4` →
+`PASS nothing found under these tags`, and Cloud Run is back to `scamshield` only. The log
+is at the end of `reports/lab5/teardown.txt`.
+
+Lesson for Drill 5: a label is only as good as the place that writes it. The deploy path
+CI/CD uses was labelled for an older lab, and the per-lab teardown silently missed it.
+
 ## Still to do
 
 - [x] Re-run `make cost-report LAB=5` after 24 hours, since deletion is asynchronous. Expect
