@@ -121,3 +121,14 @@ az group list:
 (end)
 az resource list length: 0
 (az CLI SyntaxWarning lines from azure-cli 2.91.0 removed; cosmetic only)
+
+# After merging PR #6 (CD recreated staging, label lab=4) — make teardown LAB=4 — 2026-10-18T05:53:22Z
+  deleted   Cloud Run service itcs355-staging
+
+# make cost-report LAB=4 — 2026-10-18T05:53:30Z
+searching for resources tagged {'course': 'itcs355', 'student': 'itcs355-6688143', 'lab': '4'}
+
+PASS  nothing found under these tags
+Still check the console. An untagged resource is invisible to this script and will keep billing.
+
+run services: scamshield 

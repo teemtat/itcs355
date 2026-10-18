@@ -61,6 +61,18 @@ the 17 is running, and none of them costs anything.
 
 To remove them anyway (this breaks the model's lineage): `make teardown LAB=5 PURGE=True`.
 
+## After merging PR #6
+
+Merging Lab 5 into `main` on 2026-10-18 at 05:46 UTC ran CI, and CD then **recreated
+`itcs355-staging`**, the same thing that happened after the Lab 4 merge. The CD workflow
+dates from Lab 4 and labels the service `lab=4`, so `make teardown LAB=5` would not have
+found it. I deleted it at 05:53 UTC with `make teardown LAB=4`. `make cost-report LAB=4` →
+`PASS nothing found under these tags`, and Cloud Run is back to `scamshield` only. The log
+is at the end of `reports/lab5/teardown.txt`.
+
+Lesson for Drill 5: a label is only as good as the place that writes it. The deploy path
+CI/CD uses was labelled for an older lab, and the per-lab teardown silently missed it.
+
 ## Still to do
 
 - [x] Re-run `make cost-report LAB=5` after 24 hours, since deletion is asynchronous. Expect
@@ -68,8 +80,26 @@ To remove them anyway (this breaks the model's lineage): `make teardown LAB=5 PU
       SUCCEEDED records; 0 schedules, 0 running pipeline/custom jobs, 0 endpoints, Cloud Run
       only `scamshield` (capstone), 0 Run jobs, 0 Scheduler jobs, 0 instances, 0 lab5 SAs;
       Azure 0 resource groups, 0 resources. Log in `reports/lab5/teardown.txt`.
-- [ ] Check the console by hand and take the screenshot of the empty resource list: Vertex
+- [x] Check the console by hand and take the screenshot of the empty resource list: Vertex
       pipelines, schedules and endpoints, Cloud Run, Cloud Scheduler, and Compute Engine.
+      **Done 2026-10-18, after the post-merge teardown**, in
+      [`reports/lab5/screenshots/`](lab5/screenshots/):
+
+      | # | Console page | What it shows |
+      |---|---|---|
+      | 1 | Cloud Run | only `scamshield` (capstone); no `itcs355-staging` |
+      | 2 | Vertex AI Pipelines → Schedules, asia-southeast1 | empty |
+      | 3 | Vertex AI Pipelines → Runs, asia-southeast1 | the 5 Lab 5 runs, 3 Succeeded and 2 Failed, none running |
+      | 4 | Vertex AI Endpoints, asia-southeast1 | empty |
+      | 5 | Cloud Scheduler | empty |
+      | 6 | Compute Engine → VM instances | empty |
+      | 7 | IAM → Service accounts | no `itcs355-lab5-*` (only the compute default, `gh-deployer` and the capstone's `scamshield-deployer`) |
+      | 8 | Azure → Resource groups (Azure for Students) | empty |
+
+      The first pass of shots 2–4 was taken with the console's region selector on its default,
+      us-central1, which proves nothing about a lab that ran in asia-southeast1, so they were
+      retaken. That is the same lesson as the `lab=4` label: an empty list only counts if you
+      looked in the place the resource would have been.
 - [x] Read the actual Lab 5 cost from the billing page, filtered by label `lab=5`.
       **Done 2026-10-18:** 8.30 THB labelled, plus 1.04 THB of unlabelled Gemini, so ≈ 9.34 THB, all
       paid by credits. See [lab5-cost.md](lab5-cost.md) §2.
